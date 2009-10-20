@@ -21,13 +21,13 @@ function wiredcraft_profile_modules() {
     // Admin
     'admin',
     // Views
-    'views', 'views_ui',
+    'views',
     // Context
-    'context', 'context_ui', 'context_contrib',
+    'context', 'context_contrib',
     // Features
     'features',
     // Image
-    'imageapi', 'imageapi_gd', 'imagecache', 'imagecache_ui',
+    'imageapi', 'imageapi_gd', 'imagecache',
   );
   return $modules;
 }
@@ -122,28 +122,6 @@ function _profile_batch_tasks() {
 }
 
 /**
- * Other modules (contrib, custom, features...).
- */
-function _profile_other_modules() {
-  return array(
-    // Strongarm
-    'strongarm',
-    // CCK
-    'content', 'optionwidgets', 'text', 'number', 'nodereference',
-    // Date
-    'date_api', 'date_timezone', 'date_popup', 'date',
-    // Others
-    'diff',
-    // Development
-    'devel', 'admin_menu',
-    // Custom features
-    'feature_permissions', 'feature_page',
-    // Custom modules
-    // ...
-  );
-}
-
-/**
  * Basic settings, for Drupal core and modules in hook_profile_modules().
  */
 function _profile_settings_basic() {
@@ -157,10 +135,56 @@ function _profile_settings_basic() {
 }
 
 /**
+ * Other modules (contrib, custom, features...).
+ */
+function _profile_other_modules() {
+  return array(
+    // Strongarm
+    'strongarm',
+    // CCK
+    'content', 'optionwidgets', 'text', 'number', 'nodereference',
+    // Date
+    'date_api', 'date_timezone', 'date_popup', 'date',
+    // UIs
+    'views_ui', 'context_ui', 'imagecache_ui',
+    // Others
+    'diff',
+    // Development
+    'devel', 'admin_menu',
+    // Custom features
+    'feature_permissions', 'feature_page',
+    // Custom modules
+    // ...
+  );
+}
+
+/**
  * Extra settings.
  */
 function _profile_configure() {
+  // Date
   variable_set('date_default_timezone_name', 'Asia/Shanghai');
+
+  // Date format: date only
+  $date_format_type = array('is_new'  => TRUE, 'type' => 'date_only', 'title' => 'Date only', 'locked' => 1);
+  date_format_type_save($date_format_type);
+  $formats = array(
+    array('format' => 'Y-m-d', 'default' => TRUE),
+    array('format' => 'm/d/Y'),
+    array('format' => 'd/m/Y'),
+    array('format' => 'Y/m/d'),
+  );
+  _profile_save_date_formats($formats, 'date_only');
+
+  // Date format: time only
+  $date_format_type = array('is_new'  => TRUE, 'type' => 'time_only', 'title' => 'Time only', 'locked' => 1);
+  date_format_type_save($date_format_type);
+  $formats = array(
+    array('format' => 'H:i', 'default' => TRUE),
+    array('format' => 'g:ia'),
+    array('format' => 'G:i'),
+  );
+  _profile_save_date_formats($formats, 'time_only');
 }
 
 /**
@@ -210,4 +234,26 @@ function _profile_check_dependencies($module_list) {
   $module_list = array_keys($module_list);
 
   return $module_list;
+}
+
+/**
+ * Save date formats.
+ *
+ * NOTE & TODO: there is a bug in date_format_save(), which doesn't save locales.
+ */
+function _profile_save_date_formats($formats, $type = 'short', $langcode = 'en') {
+  $default_format = array(
+    'is_new'  => TRUE,
+    'type'    => $type,
+    'format'  => '',
+    'locked'  => 1,
+    'locales' => array($langcode),
+  );
+  foreach ($formats as $format) {
+    $date_format = array_merge($default_format, $format);
+    date_format_save($date_format);
+    if (!empty($date_format['default'])) {
+      variable_set('date_format_'. $type, (string)$date_format['format']);
+    }
+  }
 }
