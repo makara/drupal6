@@ -22,7 +22,7 @@
 
 ## Create a new project
 
-1.	You can folk or clone this project, or just copy things you want.
+1.	You can fork or clone this project, or just copy things you want.
 1.	Normally you want to remove Drush from other projects (keep it with your central/basic drupal project is enough). To do so, remove "drush" and "modules/drush_commands" folder.
 1.	You can build your install profile (read next section). In order to make it available to Drupal, put it in "html/profiles" folder or link it there.
 

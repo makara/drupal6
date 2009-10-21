@@ -64,7 +64,7 @@ function wiredcraft_profile_tasks(&$task, $url) {
   // Install other modules.
   if ($task == 'install-modules') {
     $modules = _profile_other_modules();
-    $modules = _profile_check_dependencies($modules);
+    $modules = _profile_check_module_dependencies($modules);
     $files = module_rebuild_cache();
     // Create batch.
     foreach ($modules as $module) {
@@ -213,7 +213,7 @@ function _profile_configure_finished($success, $results) {
 /**
  * Copied from drupal_install_modules().
  */
-function _profile_check_dependencies($module_list) {
+function _profile_check_module_dependencies($module_list) {
   $files = module_rebuild_cache();
   $module_list = array_flip(array_values($module_list));
   do {
