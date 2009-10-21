@@ -83,8 +83,8 @@ function wiredcraft_profile_tasks(&$task, $url) {
   // Additional configurations.
   if ($task == 'install-configure') {
     $batch['title'] = st('Configuring @drupal', array('@drupal' => drupal_install_profile_name()));
-    $batch['operations'][] = array('_profile_configure', array());
-    $batch['operations'][] = array('_profile_configure_finalize', array());
+    $batch['operations'][] = array('_profile_settings_extra', array());
+    $batch['operations'][] = array('_profile_finalize', array());
     $batch['operations'][] = array('drupal_cron_run', array());
     $batch['finished'] = '_profile_configure_finished';
     variable_set('install_task', 'install-configure-batch');
@@ -161,7 +161,7 @@ function _profile_other_modules() {
 /**
  * Extra settings.
  */
-function _profile_configure() {
+function _profile_settings_extra() {
   // Date
   variable_set('date_default_timezone_name', 'Asia/Shanghai');
 
@@ -190,7 +190,7 @@ function _profile_configure() {
 /**
  * Flush caches.
  */
-function _profile_configure_finalize() {
+function _profile_finalize() {
   module_rebuild_cache();
   drupal_get_schema(NULL, TRUE); // Clear schema DB cache
   drupal_flush_all_caches();
