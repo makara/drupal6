@@ -6,6 +6,9 @@ Entries.Log
 
 /html/sites/*
 !/html/sites/all
+!/html/sites/default
+
+/html/sites/default/*
 !/html/sites/default/default.settings.php
 
 html/backup
