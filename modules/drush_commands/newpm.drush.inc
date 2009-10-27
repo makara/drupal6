@@ -34,7 +34,9 @@ function drush_newpm_update_allcode() {
     // TODO
   }
 
-  drush_invoke("updatecode");
+  $args = func_get_args();
+  array_unshift($args, 'updatecode');
+  call_user_func_array('drush_invoke', $args);
 }
 
 /**
