@@ -1,5 +1,5 @@
 <?php
-// $Id: sql.drush.inc,v 1.17 2009/05/11 20:53:10 weitzman Exp $
+// $Id: sql.drush.inc,v 1.23 2009/10/15 15:27:36 weitzman Exp $
 
 /**
  * @file Drush sql commands
@@ -71,6 +71,7 @@ function sql_drush_command() {
        'query' => 'A SQL query. Mandatory.',
     ),
     'options' => $options,
+    'aliases' => array('sqlq'),
   );
   $items['sql load'] = array(
     'callback' => 'drush_sql_load',
@@ -98,9 +99,10 @@ function sql_drush_command() {
   }
   $items['sql cli'] = array(
     'callback' => 'drush_sql_cli',
-    'description' => 'Open a SQL command-line interface using Drupal’s credentials.',
+    'description' => "Open a SQL command-line interface using Drupal's credentials.",
     'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_CONFIGURATION,
     'options' => $options,
+    'aliases' => array('sqlc'),
   );
   return $items;
 }
@@ -164,13 +166,13 @@ function drush_sql_dump($db_spec = NULL) {
     $structure_tables = $all_structure_tables[$key];
     $skip_tables += $structure_tables;
   }
-  $database = $db_spec['database'];
 
   switch (_drush_sql_get_scheme()) {
     case 'mysql':
       if (is_null($db_spec)) {
         $db_spec = _drush_sql_get_db_spec();
       }
+      $database = $db_spec['database'];
 
       $exec = 'mysqldump' . (drush_get_context('DRUSH_VERBOSE') ? ' -v' : '');
       if ($file = drush_get_option('result-file')) {
@@ -310,7 +312,7 @@ function drush_sql_load($source, $destination) {
 function drush_sql_cli() {
   switch (_drush_sql_get_scheme()) {
     case 'mysql':
-      $command = 'mysql -A' . (drush_get_context('DRUSH_VERBOSE') ? ' -v' : '');
+      $command = 'mysql ' . (drush_get_context('DRUSH_VERBOSE') ? ' -v' : '');
       $command .= _drush_sql_get_credentials();
       break;
     case 'pgsql':
@@ -375,7 +377,7 @@ function _drush_sql_get_spec_from_settings($file, $prefix) {
   
   // Translate the custom options for sql load into ones usually recognized (i.e. no prefix).
   if ($database = drush_get_option($prefix . '_database')) {
-    drush_set_option('database', $value);
+    drush_set_option('database', $database);
   }
   if ($target = drush_get_option($prefix . '_target')) {
     drush_set_option('target', $target);
@@ -398,22 +400,18 @@ function _drush_sql_get_scheme($db_spec = NULL) {
  * @return string
  */
 function _drush_sql_get_credentials($db_spec = NULL) {
-  switch (_drush_sql_get_scheme()) {
+  if (is_null($db_spec)) {
+    $db_spec = _drush_sql_get_db_spec($db_spec);
+  }
+  
+  switch (_drush_sql_get_scheme($db_spec)) {
     case 'mysql':
-      if (is_null($db_spec)) {
-        $db_spec = _drush_sql_get_db_spec();
-      }
-
       $cred = ' -h' . $db_spec['host'] .
          (empty($db_spec['port']) ? '' : ' -P' . $db_spec['port']) .
          ' -u' . $db_spec['username'] .
          (empty($db_spec['password']) ? '' : ' -p' . $db_spec['password']) . ' ' . $db_spec['database'];
       break;
   case 'pgsql':
-      if (is_null($db_spec)) {
-        $db_spec = _drush_sql_get_db_spec();
-      }
-
       $cred = $db_spec['database'] . ' ' .
          (empty($db_spec['host']) || ($db_spec['host'] == "localhost") ? '' : '-h ' . $db_spec['host']) . ' ' .
          (empty($db_spec['port']) ? '' : '-p' . $db_spec['port']) . ' ';

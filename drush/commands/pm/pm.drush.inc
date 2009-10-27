@@ -1,5 +1,5 @@
 <?php
-// $Id: pm.drush.inc,v 1.40 2009/06/09 02:35:08 weitzman Exp $
+// $Id: pm.drush.inc,v 1.54 2009/10/06 01:33:15 weitzman Exp $
 
 /**
  * @file
@@ -54,7 +54,7 @@ function pm_drush_help($section) {
       return dt("Display available update information and allow updating of all installed projects to the specified version (or latest by default), followed by applying any database updates required (as with running update.php). Note: The user is asked to confirm before the actual update. Use the --yes option to answer yes automatically.");
       case 'drush:info':
       return dt("View all releases for a given project (modules, themes, profiles, translations). Useful for deciding which version to install/update.");
-    case 'drush:dl':
+    case 'drush:download':
       return dt("Quickly download projects (modules, themes, profiles, translations) from drupal.org. Automatically figures out which module version you want based on its latest release, or you may specify a particular version. Downloads drupal core as well.  If no destination is provided, defaults to a site specific modules directory if available, then to sites/all/modules if available, then to the current working directory.");
   }
 }
@@ -79,12 +79,14 @@ function pm_drush_command() {
     'arguments' => array(
       'modules' => 'A space delimited list of modules.',
     ),
+    'aliases' => array('en'),
   );
   $items['disable'] = array(
     'description' => 'Disable one or more modules.',
     'arguments' => array(
       'modules' => 'A space delimited list of modules.',
     ),
+    'aliases' => array('dis'),
   );
   // Install command is reserved for the download and enable of projects including dependencies. 
   // @see http://drupal.org/node/112692 for more information.
@@ -104,10 +106,12 @@ function pm_drush_command() {
     'options' => array(
       '--pipe' => 'Returns a space delimited list of enabled modules.',
     ),
+    'aliases' => array('sm'),
   );
   $items['refresh'] = array(
     'description' => 'Refresh update status information',
     'drupal dependencies' => array($update),
+    'aliases' => array('rf'),
   );
   $items['updatecode'] = array(
     'description' => 'Update your project code',
@@ -118,6 +122,7 @@ function pm_drush_command() {
     'options' => array(
       '--backup-dir' => 'Specify a directory to backup packages into, defaults to a backup directory within your Drupal root.',
     ),
+    'aliases' => array('upc'),
   ) + $engines;
   $items['update'] = array(
     'description' => 'Update your project code and apply any database updates required (update.php)',
@@ -128,6 +133,7 @@ function pm_drush_command() {
     'options' => array(
       '--backup-dir' => 'Specify a directory to backup packages into, defaults to a backup directory within your Drupal root.',
     ),
+    'aliases' => array('up'),
   );
   $items['info'] = array(
     'description' => 'Release information for a project',
@@ -139,15 +145,15 @@ function pm_drush_command() {
       'drush info cck zen' => 'View releases for cck and Zen projects.',
     ),
   );
-  $items['dl'] = array(
+  $items['download'] = array(
     'description' => 'Download core Drupal and projects like CCK, Zen, etc.',
     'examples' => array(
       'drush dl' => 'Download latest version of Drupal core.', 
       'drush dl drupal' => 'Download latest stable version of Drupal core', 
       'drush dl drupal-7.x' => 'Download latest 7.x development version of Drupal core', 
       'drush dl cck zen es' => 'Download latest versions of CCK, Zen and Spanish translations for my version of Drupal.',
-      'drush dl og-1.3' => 'Download a specfic version of diff module for my version of Drupal.',
-      'drush dl diff-6.x-2.x' => 'Download a specfic development branch of diff module for a specific Drupal version.',
+      'drush dl og-1.3' => 'Download a specfic version of Organic groups module for my version of Drupal.',
+      'drush dl diff-6.x-2.x' => 'Download a specific development branch of diff module for a specific Drupal version.',
     ),
     'arguments' => array(
       'projects' => 'A space separated list of project names, with optional version. Defaults to \'drupal\'',
@@ -156,6 +162,7 @@ function pm_drush_command() {
       '--destination' => 'Path to which the project will be copied.',
     ), 
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH, // No bootstrap at all.
+    'aliases' => array('dl')
   ) + $engines;
   return $items;
 }
@@ -164,16 +171,16 @@ function pm_drush_command() {
  * Command callback. Enables one or more modules.
  */
 function drush_pm_enable() {  
-  $command = drush_get_command();
-  return pm_module_manage($command['arguments'], TRUE);
+  $args = func_get_args();
+  return pm_module_manage($args, TRUE);
 }
 
 /**
  * Command callback. Disable one or more modules.
  */
 function drush_pm_disable() {
-  $command = drush_get_command();
-  return pm_module_manage($command['arguments'], FALSE);
+  $args = func_get_args();
+  return pm_module_manage($args, FALSE);
 }
 
 /**
@@ -181,8 +188,7 @@ function drush_pm_disable() {
  * // TODO: Use drupal_execute on system_modules_uninstall_confirm_form so that input is validated.
  */
 function drush_pm_uninstall() {
-  $command = drush_get_command();
-  $modules = $command['arguments'];
+  $modules = func_get_args();
     
   drush_print(dt('The following modules will be uninstalled: !modules', array('!modules' => implode(', ', $modules))));
   if(!drush_confirm(dt('Do you really want to continue?'))) {
@@ -194,8 +200,17 @@ function drush_pm_uninstall() {
     
   foreach ($modules as $module) {
     // Minimalist validation.
-    if (db_result(db_query("SELECT name FROM {system} WHERE name='%s' AND type = 'module' AND status = 0 AND schema_version > %d", $module, SCHEMA_UNINSTALLED))) {
-      drupal_uninstall_module($module);
+    if (drush_drupal_major_version() >= 7) {
+      if ($valid = db_query("SELECT name FROM {system} WHERE name = :name AND type = 'module' AND status = 0 AND schema_version > :schema_version", array(':name' => $module, ':schema_version' => SCHEMA_UNINSTALLED))->fetchField()) {
+        drupal_uninstall_modules(array($module));
+      }
+    }
+    else {
+      if ($valid = db_result(db_query("SELECT name FROM {system} WHERE name='%s' AND type = 'module' AND status = 0 AND schema_version > %d", $module, SCHEMA_UNINSTALLED))) {
+        drupal_uninstall_module($module);
+      }
+    }
+    if ($valid) {
       drush_log(dt('!module was successfully uninstalled.', array('!module' => $module)), 'ok');
     }
     else {
@@ -213,12 +228,12 @@ function pm_module_manage($modules = array(), $enable = TRUE) {
     require_once('./'. drupal_get_path('module', 'system') .'/system.module');
   }
 
-  $module_info = module_rebuild_cache();
+  $module_info = drush_get_modules();
   $enabled = array();
   foreach ($module_info as $module_name => $module) {
     // In Drupal 5, system_modules() returns NULL for the dependency list of the module if there are no dependencies. 
     // We will override this to be an empty array instead to be compatible to Drupal 6 and 7
-    if (!is_array($module->info['dependencies'])){
+    if (empty($module->info['dependencies'])){
        $module->info['dependencies'] = array();
     }
     // Add enabled modules to an array for easy reference.
@@ -229,7 +244,6 @@ function pm_module_manage($modules = array(), $enable = TRUE) {
   if (empty($modules)) {
     pm_module_status($enabled, $module_info);
   }
-  
   else {
     $requested_modules = $modules;
     if ($enable) {
@@ -241,8 +255,23 @@ function pm_module_manage($modules = array(), $enable = TRUE) {
       if(!drush_confirm(dt('Do you really want to continue?'))) {
         drush_die('Aborting.');
       }
-      // We enable the modules explicitly here, to pass dependency validation in the form submit.
-      module_enable($modules);
+      // Make sure the install API is available.
+      require_once './includes/install.inc';
+      // We install/enable modules explicitly here, to pass dependency validation in form submit.
+      $install_modules = array();
+      $enable_modules = array();
+      foreach ($modules as $module) {
+        // In Drupal 5, drupal_install_modules() only installs new modules,
+        // and does not enable previously installed and disabled modules.
+        if (drupal_get_installed_schema_version($module) == SCHEMA_UNINSTALLED) {
+          $install_modules[] = $module;
+        }
+        else {
+          $enable_modules[] = $module;
+        }
+      }
+      drupal_install_modules($install_modules);
+      module_enable($enable_modules);
       $current = drupal_map_assoc($enabled, 'pm_true');
       // Add the list of enabled modules from the active modules list.
       $active_modules = array_merge($current, drupal_map_assoc($modules, 'pm_true'));
@@ -275,7 +304,7 @@ function pm_module_manage($modules = array(), $enable = TRUE) {
       drupal_form_submit('system_modules', $form_state);
     }
 
-    $module_info = module_rebuild_cache();
+    $module_info = drush_get_modules();
     foreach ($modules as $module_name) {
       if ($enable) { 
         if ($module_info[$module_name]->status) {
@@ -298,7 +327,7 @@ function pm_module_manage($modules = array(), $enable = TRUE) {
 }
 
 function pm_module_status($enabled, $module_info) {
-  $rows[] = array(dt('Name'), dt('Enabled/Disabled'), dt('Description'));
+  $rows[] = array(dt('Name'), dt('Status'), dt('Description'));
   foreach ($module_info as $module_name => $module) {
     $enabled = dt('Disabled');
     if ($module->status) {
@@ -325,7 +354,7 @@ function pm_dependencies(&$modules, $enabled, $module_info) {
     if (array_search($module, $enabled) !== FALSE) {
       // We find the module in the list of modules already enabled, ignore it.
       unset($modules[$key]);
-      drush_set_error('DRUSH_PM_ALREADY_ENABLED', dt('!module is already enabled.', array('!module' => $module_info[$module]->info['name'])));
+      drush_log(dt('!module is already enabled.', array('!module' => $module_info[$module]->info['name'])), 'ok');
     }
     else if (isset($module_info[$module])) {
       // This module is available, check for dependencies that are not already enabled.
@@ -452,7 +481,9 @@ function drush_pm_refresh() {
  * Command callback. Execute updatecode.
  */
 function drush_pm_update() {
-  drush_invoke("updatecode");
+  $args = func_get_args();
+  array_unshift($args, 'updatecode');
+  call_user_func_array('drush_invoke', $args);
 }
 
 /**
@@ -460,7 +491,9 @@ function drush_pm_update() {
  * Execute updatedb command after an updatecode - user requested `update`.
  */
 function drush_pm_post_update() {
-  drush_backend_invoke("updatedb");
+  $args = func_get_args();
+  array_unshift($args, 'updatedb');
+  call_user_func_array('drush_invoke', $args);
 }
 
 /**
@@ -541,7 +574,7 @@ function pm_dl_destination_lookup($type, $drupal_root, $sitepath, $create = FALS
       $destination = $drupal_root . '/';
       break;
     case 'profile':
-      $destination = $drupal_root . 'profiles/';
+      $destination = $drupal_root . '/profiles/';
       break;
   }
   if ($create) {
@@ -713,9 +746,12 @@ function pm_drush_engine_package_handler() {
       'options' => array(
         '--package-handler=cvs' => 'Use CVS to checkout and update projects.',
         '  --cvsparams' => 'Add options to the `cvs` program',
-        '  --cvsmethod' => 'force cvs updates or checkouts (checkout is default unless the directory is managed by a supported version control system).'
+        '  --cvsmethod' => 'Force cvs updates or checkouts (checkout is default unless the directory is managed by a supported version control system).',
+        '  --cvscredentials' => 'A username and password that is sent for cvs checkout command. Defaults to anonymous:anonymous',
+        
       ),
       'examples' => array(
+          'drush [command] cck --cvscredentials=\"name:password\"' =>  'Checkout should use these credentials.',
           'drush [command] cck --cvsparams=\"-C\"' =>  'Overwrite all local changes (Quotes are required).',
           'drush [command] cck --cvsmethod=update' =>  'Will update the project, and try to merge changes, rather than overwriting them. Any conflicts will need to be resolved manually.',
       ),
@@ -749,7 +785,7 @@ function pm_drush_engine_version_control() {
 /**
  * Command callback. Download drupal core.
  */
-function drush_pm_dl() {
+function drush_pm_download() {
   // Bootstrap to the highest level possible.
   drush_bootstrap_max();
 

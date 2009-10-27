@@ -1,5 +1,5 @@
 <?php
-// $Id: command.inc,v 1.36 2009/05/27 19:38:12 adrian Exp $
+// $Id: command.inc,v 1.45 2009/10/26 02:26:37 weitzman Exp $
 
 /**
  * @file
@@ -99,6 +99,8 @@ function drush_get_commands() {
           'description' => NULL,
           'arguments' => array(),
           'options' => array(),
+          'examples' => array(),
+          'aliases' => array(),
           'extras' => array(),
           'core' => array(),
           'scope' => 'site',
@@ -112,6 +114,12 @@ function drush_get_commands() {
         drush_enforce_requirement_core($command);
         drush_enforce_requirement_drupal_dependencies($command);
         $commands[$key] = $command;
+        if (isset($command['aliases']) && count($command['aliases'])) {
+          foreach ($command['aliases'] as $alias) {
+            $commands[$alias] = $command;
+            $commands[$alias]['is_alias'] = TRUE;
+          }
+        }
       }
     }
   }
@@ -166,11 +174,19 @@ function drush_parse_command() {
 
   // We have found a command that matches. Set the appropriate values.
   if ($command) {
-    $arguments = array_reverse($arguments);
+    // Special case. Force help command if --help option was specified.
+    if (drush_get_option(array('h', 'help'))) {
+      $arguments = array($command['command']);
+      $command = $implemented['help'];
+      $command['arguments'] = $arguments;
+    }
+    else {
+      $arguments = array_reverse($arguments);
 
-    // Merge specified callback arguments, which precede the arguments passed on the command line.
-    if (isset($command['callback arguments']) && is_array($command['callback arguments'])) {
-      $arguments = array_merge($command['callback arguments'], $arguments);
+      // Merge specified callback arguments, which precede the arguments passed on the command line.
+      if (isset($command['callback arguments']) && is_array($command['callback arguments'])) {
+        $arguments = array_merge($command['callback arguments'], $arguments);
+      }
     }
     $command['arguments'] = $arguments;
     drush_set_command($command);
@@ -188,7 +204,7 @@ function drush_parse_command() {
  * in reverse order from how they were executed.
  *
  * This function will also trigger pre_$hook and post_$hook variants of the hook 
- * and it's rollbacks automatically.
+ * and its rollbacks automatically.
  *
  * @param command 
  *   The drush command to execute.
@@ -404,10 +420,12 @@ function _drush_find_commandfiles($phase) {
     case DRUSH_BOOTSTRAP_DRUPAL_FULL:
       // Add enabled module paths. Since we are bootstrapped,
       // we can use the Drupal API.
-      $files = module_rebuild_cache();
+      $files = drush_get_modules();
       foreach ($files as $file) {
-        if ($file->status) {
-          $searchpath[] = dirname($file->filename);
+        if (isset($file->status)) {
+          if ($file->status) {
+            $searchpath[] = dirname($file->filename);
+          }
         }
       }
      break;
@@ -420,7 +438,7 @@ function _drush_find_commandfiles($phase) {
     // Scan for drush command files, load if found
     foreach (array_unique($searchpath) as $path) {
       if (is_dir($path)) {
-        $files = drush_scan_directory($path, '\.drush\.inc$');
+        $files = drush_scan_directory($path, '/\.drush\.inc$/');
         foreach ($files as $filename => $info) {
           require_once($filename);
           $list[basename($filename, '.drush.inc')] = $filename;
@@ -518,7 +536,7 @@ function drush_scan_directory($dir, $mask, $nomask = array('.', '..', 'CVS'), $c
           // Give priority to files in this folder by merging them in after any subdirectory files.
           $files = array_merge(drush_scan_directory("$dir/$file", $mask, $nomask, $callback, $recurse, $key, $min_depth, $depth + 1), $files);
         }
-        elseif ($depth >= $min_depth && ereg($mask, $file)) {
+        elseif ($depth >= $min_depth && preg_match($mask, $file)) {
           // Always use this match over anything already set in $files with the same $$key.
           $filename = "$dir/$file";
           $basename = basename($file);
@@ -544,7 +562,7 @@ function drush_scan_directory($dir, $mask, $nomask = array('.', '..', 'CVS'), $c
  * Check that a command is valid for the current bootstrap phase.
  * 
  * @param $command
- *   Command to check. Any errors  will be added to the 'bootstrap_errors' element.  
+ *   Command to check. Any errors will be added to the 'bootstrap_errors' element.
  * 
  * @return
  *   TRUE if command is valid.
@@ -552,7 +570,7 @@ function drush_scan_directory($dir, $mask, $nomask = array('.', '..', 'CVS'), $c
 function drush_enforce_requirement_bootstrap_phase(&$command) {
   $valid = array();
   $current_phase = drush_get_context('DRUSH_BOOTSTRAP_PHASE');
-  if ($command['bootstrap'] == $current_phase) {
+  if ($command['bootstrap'] <= $current_phase) {
     return TRUE;
   }
   // TODO: provide description text for each bootstrap level so we can give
@@ -561,7 +579,7 @@ function drush_enforce_requirement_bootstrap_phase(&$command) {
 }
 
 /**
- * Check that a command has it's declared dependencies available or have no
+ * Check that a command has its declared dependencies available or have no
  * dependencies.
  * 
  * @param $command

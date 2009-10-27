@@ -1,5 +1,5 @@
 <?php
-// $Id: backend.inc,v 1.15 2009/05/20 21:26:55 adrian Exp $
+// $Id: backend.inc,v 1.17 2009/10/26 02:26:37 weitzman Exp $
 
 /**
  * @file Drush backend API
@@ -13,7 +13,7 @@
  * invoke each other.
  *
  * There are many cases where a command might wish to call another
- * command in it's own process, to allow the calling command to
+ * command in its own process, to allow the calling command to
  * intercept and act on any errors that may occur in the script that
  * was called.
  *
@@ -87,7 +87,7 @@ function drush_backend_output() {
  *
  * @return
  *   An associative array containing the data from the external command, or the string parameter if it
- *   could not be parsed succesfully.
+ *   could not be parsed successfully.
  */
 function drush_backend_parse_output($string, $integrate = TRUE) {
   $regex = sprintf(DRUSH_BACKEND_OUTPUT_DELIMITER, '(.*)');
@@ -154,7 +154,7 @@ function _drush_backend_integrate($data) {
  *
  * @return
  *   False if the command could not be executed, or did not return any output.
- *   If it executed succesfully, it returns an associative array containing the command
+ *   If it executed successfully, it returns an associative array containing the command
  *   called, the output of the command, and the error code of the command.
  */
 function _drush_proc_open($cmd, $data = NULL) {
@@ -272,7 +272,7 @@ function _drush_backend_invoke($cmd, $data = null, $integrate = TRUE) {
       return $values;
     }
     else {
-      return drush_set_error('DRUSH_FRAMEWORK_ERROR', dt("The command could not be executed succesfully (returned: !return, code: %code)", array("!return" => $proc['output'], "%code" =>  $proc['code'])));
+      return drush_set_error('DRUSH_FRAMEWORK_ERROR', dt("The command could not be executed successfully (returned: !return, code: %code)", array("!return" => $proc['output'], "%code" =>  $proc['code'])));
     }
   }
   return FALSE;
@@ -326,7 +326,8 @@ function _drush_backend_generate_command($command, &$data, $method = 'GET', $dru
     $command .= ' ' . escapeshellarg($arg);
   }
   // @TODO: Implement proper multi platform / multi server support.
-  $cmd = sprintf(escapeshellcmd("php %s %s %s --backend"), escapeshellcmd($drush_path), $option_str, $command);
+  $php  = drush_find_php();
+  $cmd = $php . sprintf(escapeshellcmd(" %s %s %s --backend"), escapeshellcmd($drush_path), $option_str, $command);
 
   if (!is_null($hostname)) {
     $username = (!is_null($username)) ? $username : get_current_user();

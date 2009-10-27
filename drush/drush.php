@@ -1,6 +1,5 @@
-#!/usr/bin/env php
 <?php
-// $Id: drush.php,v 1.68 2009/06/04 19:48:55 weitzman Exp $
+// $Id: drush.php,v 1.73 2009/10/26 02:26:36 weitzman Exp $
 
 /**
  * @file
@@ -17,7 +16,7 @@ if (!drush_verify_cli()) {
 // Check supported version of PHP.
 define('DRUSH_MINIMUM_PHP', '5.2.0');
 if (version_compare(phpversion(), DRUSH_MINIMUM_PHP) < 0) {
-  die('Your PHP installation is too old. Drush requires at least PHP ' . DRUSH_MINIMUM_PHP . "\n");
+  die('Your command line PHP installation is too old. Drush requires at least PHP ' . DRUSH_MINIMUM_PHP . "\n");
 }
 
 define('DRUSH_BASE_PATH', dirname(__FILE__));
@@ -77,6 +76,8 @@ function drush_main() {
           $command_found = TRUE;
           // Dispatch the command(s).
           $return = drush_dispatch($command);
+          
+          drush_log_timers();
           break;
         }
       }
@@ -124,7 +125,7 @@ function drush_main() {
  * will return a json string containing the options and log information
  * used by the script.
  * 
- * The command will exit with '1' if it was succesfully executed, and the 
+ * The command will exit with '1' if it was successfully executed, and the 
  * result of drush_get_error() if it wasn't.
  */
 function drush_shutdown() {
@@ -162,6 +163,12 @@ function drush_shutdown() {
     drush_pipe_output();
   }
   
+  // this way drush_return_status will always be the last shutdown function (unless other shutdown functions register shutdown functions...)
+  // and won't prevent other registered shutdown functions (IE from numerous cron methods) from running by calling exit() before they get a chance.
+  register_shutdown_function('drush_return_status');
+}
+
+function drush_return_status() {
   exit((drush_get_error()) ? DRUSH_FRAMEWORK_ERROR : DRUSH_SUCCESS);
 }
 

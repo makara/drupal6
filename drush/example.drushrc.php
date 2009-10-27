@@ -1,5 +1,5 @@
 <?php
-// $Id: example.drushrc.php,v 1.11 2009/04/19 03:13:09 weitzman Exp $
+// $Id: example.drushrc.php,v 1.13 2009/10/22 01:57:51 weitzman Exp $
 
 /*
  * Examples of valid statements for a drushrc.php file. Use this file to cut down on
@@ -21,14 +21,17 @@
  * Note that this preempts loading any other configuration files!
  */
 
-// Enable simulation mode.
-# $options['s'] = 1;
-
 // Specify a particular multisite.
 # $options['l'] = 'http://example.com/subir';
 
 // Specify your Drupal core base directory (useful if you use symlinks).
 # $options['r'] = '/home/USER/workspace/drupal-6';
+
+// Specify CVS for checkouts
+# $options['package-handler'] = 'cvs';
+
+// Specify CVS credentials for checkouts (requires --package-handler=cvs)
+# $options['cvscredentials'] = 'name:password';
 
 // Specify additional directories to search for *.drush.inc files
 // Use POSIX path separator (':')
@@ -61,6 +64,10 @@ $options['structure-tables'] = array(
 // Use cvs checkouts when downloading and updating modules.
 // An example of a command specific argument being set in drushrc.php
 // $options['package-handler'] = 'cvs';
+
+// Specify additional directories to search for scripts
+// Use POSIX path separator (':')
+# $options['script-path'] = 'sites/all/scripts:profiles/myprofile/scripts';
 
 /**
  * Variable overrides:

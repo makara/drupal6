@@ -1,5 +1,5 @@
 <?php
-// $Id: environment.inc,v 1.36 2009/06/04 19:48:55 weitzman Exp $
+// $Id: environment.inc,v 1.47 2009/10/07 16:23:20 weitzman Exp $
 
 /**
  * @file
@@ -333,21 +333,22 @@ function _drush_bootstrap_drush_validate() {
   }
 
   // Attempt to download Console Table, via various methods.
-  if (!file_exists(DRUSH_BASE_PATH . '/includes/table.inc')) {
+  $tablefile = DRUSH_BASE_PATH . '/includes/table.inc';
+  if (!file_exists($tablefile)) {
     if ($file = @file_get_contents(DRUSH_TABLE_URL)) {
-      @file_put_contents(DRUSH_BASE_PATH . '/includes/table.inc', $file);
+      @file_put_contents($tablefile, $file);
     }
-    if (!file_exists(DRUSH_BASE_PATH . '/includes/table.inc')) {
-      drush_shell_exec("wget -q -O includes/table.inc " . DRUSH_TABLE_URL);
-      if (!file_exists(DRUSH_BASE_PATH . '/includes/table.inc')) {
-        drush_shell_exec("curl -s -o includes/table.inc " . DRUSH_TABLE_URL);
-        if (!file_exists(DRUSH_BASE_PATH . '/includes/table.inc')) {
-          return drush_bootstrap_error('DRUSH_TABLES_INC', dt('Drush needs a copy of the PEAR Console_Table library saved as Drush includes/table.inc. Drush attempted to download this automatically, but failed. To continue you will need to download the !version package from http://pear.php.net/package/Console_Table, extract, and move the file Table.php to includes/table.inc.', array('!version' => DRUSH_TABLE_VERSION)));
+    if (!file_exists($tablefile)) {
+      drush_shell_exec("wget -q -O $tablefile " . DRUSH_TABLE_URL);
+      if (!file_exists($tablefile)) {
+        drush_shell_exec("curl -s -o $tablefile " . DRUSH_TABLE_URL);
+        if (!file_exists($tablefile)) {
+          return drush_bootstrap_error('DRUSH_TABLES_INC', dt("Drush needs a copy of the PEAR Console_Table library in order to function, and the attempt to download this file automatically failed. To continue you will need to download the !version package from http://pear.php.net/package/Console_Table, extract it, and copy the Table.php file into Drush's directory as !tablefile.", array('!version' => DRUSH_TABLE_VERSION ,'!tablefile' => $tablefile)));
         }
       }
     }
   }
-  require_once DRUSH_BASE_PATH . '/includes/table.inc';
+  require_once $tablefile;
 
   return TRUE;
 }
@@ -428,6 +429,16 @@ function _drush_bootstrap_drush() {
   drush_set_context('DRUSH_AFFIRMATIVE', drush_get_option(array('y', 'yes', 'b', 'backend'), FALSE));
   drush_set_context('DRUSH_SIMULATE',    drush_get_option(array('s', 'simulate'), FALSE));
 
+  // Suppress colored logging if --nocolor option is explicitly given or if
+  // terminal does not support it.
+  $nocolor = (drush_get_option(array('n', 'nocolor'), FALSE) || !getenv('TERM'));
+  if (!$nocolor) {
+    // Check for colorless terminal.
+    $colors = exec('tput colors 2>&1');
+    $nocolor = !($colors === FALSE || (is_numeric($colors) && $colors >= 3));
+  }
+  drush_set_context('DRUSH_NOCOLOR', $nocolor);
+
   // Find any command files that are available during this bootstrap phase.
   _drush_find_commandfiles(DRUSH_BOOTSTRAP_DRUSH);
 }
@@ -469,6 +480,10 @@ function _drush_bootstrap_drupal_root_validate() {
 function _drush_bootstrap_drupal_root() {
   $drupal_root = drush_set_context('DRUSH_DRUPAL_ROOT', drush_bootstrap_value('drupal_root'));
   define('DRUPAL_ROOT', $drupal_root);
+  
+  // Save original working dir case some command wants it.
+  drush_set_context('DRUSH_OLDCWD', getcwd());
+  
   chdir($drupal_root);
   drush_load_config('drupal');
   require_once(DRUSH_DRUPAL_BOOTSTRAP);
@@ -502,6 +517,12 @@ function _drush_bootstrap_drupal_site_validate() {
   // Fake the necessary HTTP headers that Drupal needs:
   if ($drush_uri) {
     $drupal_base_url = parse_url($drush_uri);
+    // If there's no url scheme set, add http:// and re-parse the url
+    // so the host and path values are set accurately.
+    if (!array_key_exists('scheme', $drupal_base_url)) {
+      $drush_uri = 'http://' . $drush_uri;
+      $drupal_base_url = parse_url($drush_uri);
+    }
     // Fill in defaults.
     $drupal_base_url += array(
       'path' => NULL,
@@ -560,7 +581,13 @@ function _drush_bootstrap_drupal_site() {
  * and access them easily in the future.
  */
 function _drush_bootstrap_drupal_configuration() {
+  global $conf, $drush_conf_override;
+  
   drupal_bootstrap(DRUPAL_BOOTSTRAP_CONFIGURATION);
+
+  // Overriding the $conf array from drupal CONFIGURATION bootstrap with the
+  // overrides we collected on the loaded config files on DRUSH_BOOTSTRAP_DRUSH
+  $conf = is_array($conf) ? array_merge($conf, $drush_conf_override) : $drush_conf_override;
 
   // Populate the DRUSH_DB_CREDENTIALS with the fields loaded from the configuration.
   $creds = array();
@@ -666,9 +693,14 @@ function drush_cwd() {
 
 /**
  * Converts a Windows path (dir1\dir2\dir3) into a Unix path (dir1/dir2/dir3).
+ * Also converts a cygwin "drive emulation" path (/cygdrive/c/dir1) into a
+ * proper drive path, still with Unix slashes (c:/dir1).
  */
 function _drush_convert_path($path) {
-  return str_replace('\\','/', $path);
+  $path = str_replace('\\','/', $path);
+  $path = preg_replace('/^\/cygdrive\/([A-Za-z])(.*)$/', '\1:\2', $path);
+
+  return $path;
 }
 
 /**
@@ -811,5 +843,55 @@ function drush_valid_db_credentials() {
   else {
     drush_log(dt('PDO support not available. Could not pre-validate database credentials. Assuming success'), 'bootstrap');
     return TRUE;
+  }
+}
+
+// Copied from run-tests.sh
+function drush_find_php() {
+  // Determine location of php command automatically, unless a command line argument is supplied.
+  if (!$php = drush_get_option('php')) {
+    if (!empty($_ENV['_'])) {
+      // '_' is an environment variable set by the shell. It contains the command that was executed.
+      $php = $_ENV['_'];
+    }
+    elseif (!empty($_ENV['SUDO_COMMAND'])) {
+      // 'SUDO_COMMAND' is an environment variable set by the sudo program.
+      // Extract only the PHP interpreter, not the rest of the command.
+      list($php, ) = explode(' ', $_ENV['SUDO_COMMAND'], 2);
+    }
+    else {
+      drush_set_error('DRUSH_PHP_PATH_NOT_FOUND', dt('Unable to automatically determine the path to the PHP interpreter. Please supply the --php argument.'));
+    }
+  }
+  return $php;
+}
+
+/**
+ * Get module information for all installed modules. Wrapper for _drush_get_modules().
+ *
+ * @return
+ *   An array containing module info for all installed modules or FALSE on error.
+ */
+function drush_get_modules() {
+  if(drush_include_engine('drupal', 'environment')){
+    return _drush_get_modules();
+  }
+  else {
+    return drush_set_error('DRUSH_CORE', dt('Drush was unable to load module information.'));
+  }
+}
+
+/**
+ * Get theme information for all installed themes. Wrapper for _drush_get_themes().
+ *
+ * @return
+ *   An array containing theme info for all installed themes or FALSE on error.
+ */
+function drush_get_themes() {
+  if(drush_include_engine('drupal', 'environment')){
+    return _drush_get_themes();
+  }
+  else {
+    return drush_set_error('DRUSH_CORE', dt('Drush was unable to load theme information.'));
   }
 }

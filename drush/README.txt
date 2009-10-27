@@ -1,10 +1,8 @@
-// $Id: README.txt,v 1.25 2009/06/04 03:10:41 weitzman Exp $
+// $Id: README.txt,v 1.29 2009/10/26 12:47:20 weitzman Exp $
 
 DESCRIPTION
 -----------
-drush is a command line shell and Unix scripting interface for Drupal, a
-veritable Swiss Army knife designed to make life easier for those of us who
-spend hours hacking at the command prompt.
+drush is a command line shell and Unix scripting interface for Drupal.
 
 Drush core ships with lots of useful commands for interacting with code 
 like modules/themes/profiles. Similarly, it runs update.php, executes sql 
@@ -28,7 +26,7 @@ For Linux/Unix/Mac:
      - If you want to run drush with a specific version of php, rather than the
        one found by the drush command, you can instead create an alias that
        executes the drush.php file directly:
-       $ alias drush='/path/to/php/php /path/to/drush/drush.php'
+       $ alias drush='/path/to/php/php5 /path/to/drush/drush.php'
        If you do this, to allow Drush to detect the number of available columns,
        you need to add the line 'export COLUMNS' to the .profile file in your
        home folder.
@@ -40,7 +38,7 @@ For Linux/Unix/Mac:
 
     If you have troubles, try using the -l and -r parameters when invoking drush. See below.
 
-For Windows (experimental!):
+For Windows:
   - Follow step 1. Use drush by navigating to /path/to/drush
     and running 'drush.bat'.
   - Whenever the documentation or the help text refers to
@@ -106,16 +104,19 @@ REQUIREMENTS
 ------------
 * To use drush from the command line, you'll need a CLI-mode capable PHP
   binary. The minimum required PHP version is 5.2.
-* drush should also run on Windows, however, drush modules might make use of
+* drush should also run on Windows, however, drush modules makes use of
   unix command line tools, so to use it effectively, you have to install
   some of them, e.g. from GnuWin32 (http://gnuwin32.sourceforge.net/).
-  The READMEs of the individual command files should state which binaries
-  are required.
 
 FAQ
 ---
   Q: What does "drush" stand for?
   A: The Drupal Shell.
+  
+  Q: How do I pronounce drush?
+  A: Some people pronounce the dru with a long u like drupal. Fidelity points goes to  
+  them, but they are in the minority. Most pronouce drush so that it rhymes with 
+  hush, rush, flush, etc. This is the preferred pronunciation.
 
 CREDITS
 -------

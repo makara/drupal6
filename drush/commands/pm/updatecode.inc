@@ -1,5 +1,5 @@
 <?php
-// $Id: updatecode.inc,v 1.11 2009/05/27 00:40:59 grugnog Exp $
+// $Id: updatecode.inc,v 1.13 2009/09/30 13:15:54 weitzman Exp $
 
 /**
  * Command callback. Displays update status info and allows to update installed modules.
@@ -16,8 +16,7 @@ function drush_pm_updatecode() {
   $releases = _pm_get_update_info();
 
   // Get specific requests
-  $command = drush_get_command();
-  $requests = $command['arguments'];
+  $requests = func_get_args();
 
   // Parse out project name and version
   $requests = pm_parse_project_version($requests);
@@ -140,7 +139,7 @@ function pm_update_packages($releases) {
       $backup_dir .= '/modules';
       @drush_op('mkdir', $backup_dir, 0777);
       $backup_dir .= "/$date";
-      drush_op('mkdir', $backup_dir, 0777);
+      @drush_op('mkdir', $backup_dir, 0777);
       $backup_target = $backup_dir . '/'. $release['name'];
       if (!drush_op('rename', $source, $backup_target)) {
         drush_die(dt('Failed to backup project directory !source to !backup_target', array('!source' => $source, '!backup_target' => $backup_target)));

@@ -1,5 +1,5 @@
 <?php
-// $Id: core.drush.inc,v 1.30 2009/06/02 23:48:31 weitzman Exp $
+// $Id: core.drush.inc,v 1.47 2009/10/26 14:39:22 weitzman Exp $
 
 /**
  * @file
@@ -38,22 +38,30 @@ function core_drush_command() {
   $items['updatedb'] = array(
     'description' => dt('Execute the update.php process from the command line'),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_SITE,
+    'aliases' => array('updb'),
   );
   $items['status'] = array(
     'description' => 'Provides a birds-eye view of the current Drupal installation, if any.',
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
+    'aliases' => array('st'),
   );
   $items['script'] = array(
     'description' => "Run php script(s).",
     'examples' => array(
-      'drush script update_variables.php' => 'Run variables.php script',
+      'drush script scratch.php' => 'Run scratch.php script. See commands/core directory.',
+      'drush script example.php --script-path=/path/to/scripts:/another/path' => 'Run script from specified paths',
+      'drush script' => 'List all available scripts.',
     ),
     'arguments' => array(
-      'path/to/script' => 'One or more file paths. Paths may be absolute or relative to the current working dir.',
+      'filename' => 'Optional. The file you wish to execute. If omitted, list files ending in .php in the current working directory and specified script-path. Some might not be real drush scripts. Beware.',
     ),
+    'options' => array(
+      '--script-path' => "Additional paths to search for scripts.  Use POSIX path separator (':') for multiple paths.",
+    ),    
   );
   $items['cache clear'] = array(
-    'description' => 'Clear all caches.'
+    'description' => 'Clear all caches.',
+    'aliases' => array('cc'),
   );
   $items['watchdog show'] = array(
     'description' => 'Shows recent watchdog log messages. Optionally filter for a specific type.',
@@ -63,11 +71,14 @@ function core_drush_command() {
     ),
     'options' => array(
       '--limit' => 'The number of messages to show. Defaults to 10.',
+      '--severity' => 'Restrict to a given severity level. Error=0, Warning=4.',
     ),
     'examples' => array(
       'watchdog show cron' => 'Show recent cron watchdog messages.',
-      'watchdog show --limit 50' => 'Show 50 recent watchdog messages.',
+      'watchdog show --severity=0' => 'Show recent error messages.',
+      'watchdog show --limit=50' => 'Show 50 recent watchdog messages.',
     ),
+    'aliases' => array('ws'),
   );
   $items['watchdog delete'] = array(
     'description' => 'Delete all messages or only those of a specified type.',
@@ -79,7 +90,26 @@ function core_drush_command() {
       'watchdog delete all' => 'Delete all watchdog messages.',
       'watchdog delete cron' => 'Delete all cron watchdog messages.',
     ),
+    'aliases' => array('wd'),
     
+  );
+  $items['search status'] = array(
+    'description' => 'Show how many items remain to be indexed out of the total.',
+    'drupal dependencies' => array('search'),
+    'options' => array(
+      '--pipe' => 'Display in the format remaining/total for processing by scripts.',
+    ),
+  );
+  $items['search index'] = array(
+    'description' => 'Index the remaining search items without wiping the index.',
+    'drupal dependencies' => array('search'),
+  );
+  $items['search reindex'] = array(
+    'description' => 'Force the search index to be rebuilt.',
+    'drupal dependencies' => array('search'),
+    'options' => array(
+      '--immediate' => 'Rebuild the index immediately, instead of waiting for cron.',
+    ),
   );
   $items['sync'] = array(
     'description' => 'Rsync the Drupal tree to/from another server using ssh.',
@@ -100,12 +130,37 @@ function core_drush_command() {
       'code' => 'PHP code',
     ),
   );
+  $items['installcore'] = array(
+    'description' => 'Install Drupal core via the specified install profile.',
+    'arguments' => array(
+      'profile' => 'the install profile you wish to run. defaults to \'default\'',
+    ),
+    'options' => array(
+      'db-driver' => 'defaults to mysql',
+      'db-host' => 'defaults to localhost',
+      'db-port' => 'defaults to 3306',
+      'db-name' => 'defaults to installcore',
+      'db-user' => 'defaults to root',
+      'db-pass' => 'defaults to EMPTY',
+      'account-user' => 'uid1 name. defaults to admin',
+      'account-pass' => 'uid1 pass. defaults to admin',
+      'account-mail' => 'uid1 email. defaults to admin@example.com',
+      'clean_url'=> 'defaults to 1',
+      'site_name' => 'defaults to installcore',
+      'site_mail' => 'from: for system mailings. defaults to admin@example.com',
+      'sites-subdir' => "name of directory under 'sites' which should be created if needed. defaults to 'default'",
+    ),
+    'core' => array(7),
+    'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
+    'aliases' => array('ic'),
+  );
   return $items;
 }
 
 function core_drush_engine_drupal() {
   $engines = array();
   $engines['update'] = array();
+  $engines['environment'] = array();
   return $engines;
 }
 
@@ -115,6 +170,7 @@ function core_drush_engine_drupal() {
 function drush_core_updatedb() {
   drush_include_engine('drupal', 'update', drush_drupal_major_version());
   update_main();
+  drush_invoke('cache clear');
   drush_log(dt('Finished performing updates.'), 'ok');
 }
 
@@ -128,7 +184,7 @@ function drush_core_help() {
   if (empty($commands)) {
     drush_show_help(array('help'));
     $phases = _drush_bootstrap_phases();
-    // For speed, only bootstrap up to DRUSH_BOOTSTRAP_DRUPAL_SITE.
+    // For speed, only bootstrap up to DRUSH_BOOTSTRAP_DRUPAL_SITE+1.
     $phases = array_slice($phases, 0, DRUSH_BOOTSTRAP_DRUPAL_SITE+1);
     drush_print(dt('Commands: '));
 
@@ -153,9 +209,12 @@ function drush_core_help() {
         
         $rows = array();
         foreach($commands as $key => $command) {
-          if (!array_key_exists($key, $printed_rows)) {
-            $rows[$key] = array($key, $commands[$key]['description']);
-            $pipe[] = "\"$key\"";
+          if (!$command['is_alias']) {
+            if (!array_key_exists($key, $printed_rows)) {
+              $name = $command['aliases'] ? $key . ' (' . implode(', ', $command['aliases']) . ')': $key;
+              $rows[$key] = array($name, $command['description']);
+              $pipe[] = "\"$key\"";
+            }
           }
         }
         drush_print_table($rows, FALSE, array(0 => 20));
@@ -199,17 +258,25 @@ function core_drush_help($section) {
     case 'drush:status':
       return dt("View the Drupal version and DB credentials for the current site.");
     case 'drush:script':
-      return dt("Runs the given php script(s) after a full Drupal bootstrap. A useful alternative to eval command when your php is lengthy or you can't be bothered to figure out bash quoting.");
+      return dt("Runs the given php script(s) after a full Drupal bootstrap. A useful alternative to eval command when your php is lengthy or you can't be bothered to figure out bash quoting. if you plan to share a script with others, consider making a full drush command instead since thats more self-documenting.");
     case 'drush:watchdog show':
       return dt("Show recent watchdog messages.");
     case 'drush:watchdog delete':
       return dt("Delete watchdog messages.");
+    case 'drush:search status':
+      return dt("Show how many items remain to be indexed for search, and the total number of items.");
+    case 'drush:search index':
+      return dt("Index the remaining search items.");
+    case 'drush:search reindex':
+      return dt("Force the search index to be rebuilt.");
     case 'drush:updatedb':
       return dt("Run update.php just as a web browser would.");
     case 'drush:sync':
       return dt("Sync the entire drupal directory or a subdirectory to a <destination> using ssh. Excludes .svn directories. Useful for pushing copies of your tree to a staging server, or retrieving a files directory from a remote site. Local paths should be specified relative to Drupal root.");
     case 'drush:eval':
       return dt("Run arbitrary PHP code in the context of Drupal");
+    case 'drush:installcore':
+      return dt("Install Drupal core.");
     case 'error:DRUSH_DRUPAL_DB_ERROR' : 
       $message = dt("Drush was not able to start (bootstrap) the Drupal database.\n");
       $message .= dt("Hint: This error often occurs when Drush is trying to bootstrap a site that has not been installed or does not have a configured database.\n");
@@ -218,7 +285,7 @@ function core_drush_help($section) {
       return $message;
     case 'error:DRUSH_DRUPAL_BOOTSTRAP_ERROR' :
       $message = dt("Drush was not able to start (bootstrap) Drupal.\n");
-      $message .= dt("Hint: This error can only occur once the database connection has already been succesfully initiated, therefor this error generally points to a site configuration issue, and not a problem connecting to the database.\n");
+      $message .= dt("Hint: This error can only occur once the database connection has already been successfully initiated, therefore this error generally points to a site configuration issue, and not a problem connecting to the database.\n");
       $message .= dt("\nDrush was attempting to connect to : \n!credentials\n", array('!credentials' => _core_site_credentials()));
       $message .= dt("You can select another site with a working database setup by specifying the URI to use with the --uri parameter on the command line or \$options['uri'] in your drushrc.php file.\n");
       return $message;
@@ -276,8 +343,12 @@ function _core_site_credentials() {
  *
  */
 function drush_core_cron() {
-  drupal_cron_run();
-  drush_print(dt('Cron run successfully.'));
+  if (drupal_cron_run()) {
+    drush_log(dt('Cron run successfully.'), 'success');
+  }
+  else {
+    drush_set_error('DRUSH_CRON_FAILED', dt('Cron run failed.'));
+  }
 }
 
 /**
@@ -294,13 +365,48 @@ function drush_core_status() {
  * Command callback. Runs "naked" php scripts.
  */
 function drush_core_script() {
-  $scripts = func_get_args();
-  foreach ($scripts as $script) {
-    $script_filename = drush_cwd() . '/' . $script;
-    if (file_exists($script_filename)) {
-      include($script_filename);
+  $args = func_get_args();
+
+  // Array of paths to search for scripts
+  $searchpath['DIR'] = dirname(__FILE__);
+  $searchpath['cwd'] = drush_cwd();
+
+  // Additional script paths, specified by 'script-path' option
+  if ($script_path = drush_get_option('script-path', FALSE)) {
+    foreach (explode(":", $script_path) as $path) {
+      $searchpath[] = $path;
     }
   }
+  
+  
+  if (empty($args)) {
+    // List all available scripts.
+    $all = array();
+    foreach($searchpath as $key => $path) {
+      $recurse = !$key == 'cwd';
+      $all = $all + array_keys(drush_scan_directory($path, '/\.php$/', array('.', '..', 'CVS'), NULL, $recurse));
+    }
+    drush_print(implode("\n", $all));
+  }
+  else {
+    // Execute the specified script.
+    $script = $args[0];
+    $found = FALSE;
+    foreach($searchpath as $path) {
+      $script_filename = $path . '/' . $script;
+      if (file_exists($script_filename)) {
+        include($script_filename);
+        $found = TRUE;
+        break;
+      }
+      $all[] = $script_filename;
+    }
+    
+    if (!$found) {
+      drush_set_error('script not found', dt('Unable to find any of the following: @files', array('@files' => implode(', ', $all))));
+    }
+  }
+
 }
 
 function drush_core_cache_clear() {
@@ -364,39 +470,50 @@ function drush_core_sync($source, $destination) {
  * Displays the most recent watchdog log messages (default: 10 messages).
  */
 function drush_core_watchdog_show($type = NULL) {
-  $severities = array(WATCHDOG_NOTICE => dt('notice'), WATCHDOG_WARNING => dt('warning'), WATCHDOG_ERROR => dt('error'));
   $limit = drush_get_option('limit') ? drush_get_option('limit') : 10;
-
-  $sql = 'SELECT w.*, u.name, u.uid FROM {watchdog} w INNER JOIN {users} u ON w.uid = u.uid';
-  $sort = ' ORDER BY w.wid DESC';
-  if (empty($type)) {
-    $result = db_query_range($sql . $sort, 0, (int)$limit);
+  $severity = drush_get_option('severity');
+  
+  switch (drush_drupal_major_version()) {
+    case 5:
+    case 6:
+      if ($type) {
+        $where[] = "w.type = '%s'";
+        $placeholders[] = $type;
+      }
+      if ($severity) {
+        $where[] = "w.severity = %d";
+        $placeholders[] = $severity;
+      }
+      $criteria = empty($where) ? '' : ' WHERE ' . implode(' AND ', $where);
+      $sql = 'SELECT w.*, u.name, u.uid FROM {watchdog} w INNER JOIN {users} u ON w.uid = u.uid  ';
+      $sort = ' ORDER BY w.wid DESC';
+      $result = db_query_range($sql . $criteria . $sort, $placeholders, 0, $limit);
+      while ($watchdog = db_fetch_object($result)) {
+        $rows[] = core_watchdog_format_row($watchdog);
+      }
+      break;
+    default:
+      $query = db_select('watchdog', 'w')
+                ->fields('w')
+                ->fields('u', array('name', 'uid'))
+                ->orderBy('w.wid', 'DESC')
+                ->range(0, $limit);
+      $query->join('users', 'u', 'w.uid = u.uid');
+      if ($type) {
+        $query->condition('w.type', $type);
+      }
+      if ($severity) {
+        $query->condition('w.severity', $severity);
+      }
+      $results = $query->execute();
+      $watchdogs = $results->fetchAllAssoc('wid');
+      foreach ($watchdogs as $watchdog) {
+        $rows[] = core_watchdog_format_row($watchdog);
+      }
   }
-  else {
-    switch (drush_drupal_major_version()) {
-      case 5:
-      case 6:
-        $result = db_query_range($sql . " WHERE w.type = '%s'" . $sort, $type, 0, $limit);
-        break;
-      default:
-        $result = db_query_range($sql . " WHERE w.type = :type" . $sort, array(':type' => $type), 0, $limit);
-    }
-  }
 
-  $rows = array();
-  // module_load_include('inc', 'dblog', 'dblog.admin');
-  while ($watchdog = db_fetch_object($result)) {
-    $rows[] = array(
-      format_date($watchdog->timestamp, 'small'),
-      $severities[$watchdog->severity],
-      dt($watchdog->type),
-      core_watchdog_format_message($watchdog),
-      theme('username', $watchdog),
-    );
-  }
-
-  if (count($rows) == 0) {
-    return drush_set_error('CORE_WATCHDOG_SHOW_NONE', 'No log messages available.');
+  if (empty($rows)) {
+    return drush_log('No log messages available.', 'ok');
   }
   else {
     drush_log(dt('Last !count watchdog log messages:', array('!count' => $limit)));
@@ -404,6 +521,17 @@ function drush_core_watchdog_show($type = NULL) {
     array_unshift($rows, array(dt('Date'), dt('Severity'), dt('Type'), dt('Message'), dt('User')));
     drush_print_table($rows, TRUE);
   }
+}
+
+function core_watchdog_format_row($watchdog) {
+  $severities = watchdog_severity_levels();
+  return array(
+    format_date($watchdog->timestamp, 'small'),
+    $severities[$watchdog->severity],
+    dt($watchdog->type),
+    core_watchdog_format_message($watchdog),
+    strip_tags(theme('username', $watchdog)),
+  );
 }
 
 function core_watchdog_format_message($watchdog) {
@@ -424,12 +552,12 @@ function core_watchdog_format_message($watchdog) {
 function drush_core_watchdog_delete($type = NULL) {
   if ($type == "all") {
     // D7: ought to be a dynamic query.
-    drush_op('db_query', 'DELETE FROM {watchdog}'); // indiscriminately delete all
-    drush_log(dt('Deleted !n rows.', array('!n' => db_affected_rows())), 'ok');
+    drush_op('db_query', 'DELETE FROM {watchdog}'); // Indiscriminately delete all
+    drush_log(dt('Deleted all rows.'), 'ok');
   }
   elseif (!empty($type)) {
     drush_op('db_query', 'DELETE FROM {watchdog} WHERE type = \'%s\'', $type);
-    drush_log(dt('Deleted !n rows.', array('!n' => db_affected_rows())), 'ok');
+    drush_log(dt('Deleted all rows.'), 'ok');
   }
   else {
     drush_set_error(dt('Please specify a message type, or "all" to delete all messages.'));

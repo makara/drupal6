@@ -1,5 +1,5 @@
 <?php
-// $Id: drush.inc,v 1.41 2009/05/27 00:47:38 grugnog Exp $
+// $Id: drush.inc,v 1.56 2009/10/26 02:26:37 weitzman Exp $
 
 /**
  * @file
@@ -208,6 +208,26 @@ function drush_drupal_major_version() {
 }
 
 /**
+ * A db_result() that works for any version of Drupal.
+ *
+ * @param
+ *   A Database result object.
+ */ 
+function drush_db_result($result) {
+  return drush_drupal_major_version() >= 7 ? $result->fetchField() : db_result($result);
+}
+
+/**
+ * A db_fetch_object() that works for any version of Drupal.
+ *
+ * @param
+ *   A Database result object.
+ */ 
+function drush_db_fetch_object($result) {
+  return drush_drupal_major_version() >= 7 ? $result->fetchObject() : db_fetch_object($result);
+}
+
+/**
  * Save a string to a temporary file. Does not depend on Drupal's API.
  *
  * @param string $data 
@@ -222,7 +242,6 @@ function drush_save_data_to_temp_file($data) {
   $meta_data = stream_get_meta_data($fp);
   return $meta_data['uri'];
 }
-
 
 /**
  * Calls a given function, passing through all arguments unchanged.
@@ -264,7 +283,7 @@ function drush_op($function) {
  *
  * @see t()
  */
-function dt($string, $args = NULL) {
+function dt($string, $args = array()) {
   if (function_exists('t')) {
     return t($string, $args);
   }
@@ -288,7 +307,7 @@ function dt($string, $args = NULL) {
 function drush_get_option_help() {
   // TODO: Add a hook for this, to allow other modules to add their options
   $options['-r <path>, --root=<path>'] = dt("Drupal root directory to use (default: current directory)");
-  $options['-l <uri> , --uri=<uri>']   = dt('URI of the drupal site to use (only needed in multisite environments)');
+  $options['-l <uri>, --uri=http://example.com']   = dt('URI of the drupal site to use (only needed in multisite environments)');
   $options['-v, --verbose']            = dt('Display extra information about the command.');
   $options['-d, --debug']              = dt('Display even more information, including internal messages.');
   $options['-q, --quiet']              = dt('Hide all output');
@@ -298,12 +317,14 @@ function drush_get_option_help() {
   $options['-c, --config']             = dt("Specify a config file to use. See example.drushrc.php");
   $options['-u, --user']               = dt("Specify a user to login with. May be a name or a number.");
   $options['-b, --backend']            = dt("Hide all output and return structured data (internal use only).");
-  $options['-p, --pipe']            = dt("Emit a compact representation of the command for scripting.");
+  $options['-p, --pipe']               = dt("Emit a compact representation of the command for scripting.");
+  $options['-n, --nocolor']            = dt("Suppress color highlighting on log messages.");
+  $options['-h, --help']               = dt("The absolute path to your PHP intepreter.");
   return $options;
 }
 
 /**
- * Prints out the default drush help page.
+ * Prints out help for a given command.
  */
 function drush_show_help($commands) {
   $phases = _drush_bootstrap_phases();
@@ -326,7 +347,8 @@ function drush_show_help($commands) {
             $command = array_merge_recursive($command, $engine);
           }
         }
-        $help = drush_command_invoke_all('drush_help', 'drush:'. $commandstring);
+        
+        $help = drush_command_invoke_all('drush_help', 'drush:'. $command['command']);
         if (!empty($help)) {
           drush_print(wordwrap(implode("\n", $help), drush_get_context('DRUSH_COLUMNS', 80)));
           drush_print();
@@ -350,10 +372,16 @@ function drush_show_help($commands) {
               drush_print();
             }
           }
+
+          // Append aliases if any.
+          if ($command['aliases']) {
+            drush_print(dt("Aliases: ") . implode(', ', $command['aliases']));
+          }
+          
           return TRUE;
         }
         else {
-          drush_print("No help available for command 'drush $commandstring'.");
+          drush_print("No help available for command '$commandstring'.");
           return TRUE;
         }
       }
@@ -372,26 +400,35 @@ function drush_show_help($commands) {
  * If in simulation mode, no action is taken.
  *
  * @param $cmd
- *   The command to execute.
- * @param $indent
- *   Indentation for the output (only for verbose mode).
+ *   The command to execute. May include placeholders used for sprintf.
+ * @param ...
+ *   Values for the placeholders specified in $cmd. Each of these will be passed through escapeshellarg() to ensure they are safe to use on the command line.
+ * @return
+ *   0 if success.
  */
-function drush_shell_exec($cmd, $indent = 0) {
-  if (drush_get_context('DRUSH_VERBOSE') || drush_get_context('DRUSH_SIMULATE')) {
-    drush_print('Executing: ' . $cmd, $indent);
-  }
-
+function drush_shell_exec($cmd) {
   if (drush_get_context('DRUSH_SIMULATE')) {
     return true;
   }
+  $args = func_get_args();
+ 
+  //do not change the command itself, just the parameters.
+  for ($x = 1; $x < sizeof($args); $x++) {
+    $args[$x] = escapeshellarg($args[$x]);
+  }
+  $command = call_user_func_array('sprintf', $args);
 
-  exec($cmd . ' 2>&1', $output, $result);
+  if (drush_get_context('DRUSH_VERBOSE') || drush_get_context('DRUSH_SIMULATE')) {
+    drush_log('Executing: ' . $command);
+  }
+
+  exec($command . ' 2>&1', $output, $result);
   
   _drush_shell_exec_output_set($output);
 
   if (drush_get_context('DRUSH_VERBOSE')) {
     foreach ($output as $line) {
-      drush_print($line, $indent + 2);
+      drush_print($line, 2);
     }
   }
 
@@ -421,7 +458,8 @@ function drush_shell_exec_output() {
 }
 
 /**
- * Exits with a message.
+ * Exits with a message. In general, you should use drush_set_error() instead of 
+ * this function. That lets drush proceed with other tasks.
  * TODO: Exit with a correct status code.
  */
 function drush_die($msg = NULL, $status = NULL) {
@@ -429,7 +467,12 @@ function drush_die($msg = NULL, $status = NULL) {
 }
 
 /**
- * Prints a message with optional indentation.
+ * Prints a message with optional indentation. In general, 
+ * drush_log($message, 'ok') is often a better choice than this function. 
+ * That gets your confirmation message (for example) into the logs for this 
+ * drush request. Consider that drush requests may be executed remotely and 
+ * non interactively.
+ * 
  * @param $message
  *   The message to print.
  * @param $indent
@@ -471,7 +514,11 @@ function drush_confirm($msg, $indent = 0) {
     print "y\n";
     return TRUE;
   }
-  while ($line = trim(fgets(STDIN))) {
+  // See http://drupal.org/node/499758 before changing this.
+  $stdin = fopen("php://stdin","r");
+  
+  while ($line = fgets($stdin)) {
+  $line = trim($line);
     if ($line == 'y') {
       return TRUE;
     }
@@ -683,9 +730,16 @@ function drush_pipe_output() {
  *   False in case of an error or failed type, True in all other cases.
  */
 function _drush_print_log($entry) {
-  $red = "\033[31m\033[1m[%s]\033[0m";
-  $yellow = "\033[1;33m\033[1m[%s]\033[0m";
-  $green = "\033[0;33m\033[1m[%s]\033[0m";
+  if (drush_get_context('DRUSH_NOCOLOR')) {
+    $red = "[%s]";
+    $yellow = "[%s]";
+    $green = "[%s]";
+  }
+  else {
+    $red = "\033[31;40m\033[1m[%s]\033[0m";
+    $yellow = "\033[1;33;40m\033[1m[%s]\033[0m";
+    $green = "\033[0;33;40m\033[1m[%s]\033[0m";
+  }
 
   $verbose = drush_get_context('DRUSH_VERBOSE');
   $debug = drush_get_context('DRUSH_DEBUG');
@@ -750,6 +804,15 @@ function _drush_print_log($entry) {
   return $return;
 }
 
+// Log all timers for the request except standard page timer.
+// Useful for migrate commands. Lets see if others find it useful.
+// Called at end of request. @see drush.php
+function drush_log_timers() {
+  global $timers;
+  foreach ((array)$timers as $name => $timerec) {
+    drush_log("Timer '$name' is  "  . sprintf('%s sec.', round(timer_read($name)/1000, 3)), 'timer');
+  }
+}
 /**
 * Turn drupal_set_message errors into drush_log errors
 */
@@ -769,14 +832,14 @@ function _drush_log_drupal_messages() {
           continue;
         }
         elseif (preg_match('/^warning:/i', $error)) {
-          drush_log(ereg_replace('/^warning: /i', '', $error), 'warning');
+          drush_log(preg_replace('/^warning: /i', '', $error), 'warning');
         }
         elseif (preg_match('/^notice:/i', $error)) {
-          drush_log(ereg_replace('/^notice: /i', '', $error), 'notice');
+          drush_log(preg_replace('/^notice: /i', '', $error), 'notice');
         }
         elseif (preg_match('/^user warning:/i', $error)) {
           // This is a special case. PHP logs sql errors as 'User Warnings', not errors.
-          drush_set_error('DRUSH_DRUPAL_ERROR_MESSAGE', ereg_replace('/^user warning: /i', '', $error));
+          drush_set_error('DRUSH_DRUPAL_ERROR_MESSAGE', preg_replace('/^user warning: /i', '', $error));
         }
         else {
           drush_set_error('DRUSH_DRUPAL_ERROR_MESSAGE', $error);
@@ -818,7 +881,7 @@ function _drush_log_update_sql($ret) {
 * @see drush_set_error(), drush_get_error(), drush_get_error_log(), drush_cmp_error()
 */
 
-/** The command completed succesfully. */
+/** The command completed successfully. */
 define('DRUSH_SUCCESS', 0);
 /** The command could not be completed because the framework has specified errors that have occured. */
 define('DRUSH_FRAMEWORK_ERROR', 1);
