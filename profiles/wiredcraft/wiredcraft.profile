@@ -142,13 +142,13 @@ function _profile_other_modules() {
     // Strongarm
     'strongarm',
     // CCK
-    'content', 'optionwidgets', 'text', 'number', 'nodereference',
+    'content', 'optionwidgets', 'text', 'number', 'nodereference', 'userreference',
     // Date
-    'date_api', 'date_timezone', 'date_popup', 'date',
+    'date_api', 'date_timezone', 'date',
     // UIs
     'views_ui', 'context_ui', 'imagecache_ui',
     // Others
-    'diff',
+    'diff', 'jquery_ui', 'date_popup',
     // Development
     'devel', 'admin_menu',
     // Custom features
@@ -239,7 +239,7 @@ function _profile_check_module_dependencies($module_list) {
 /**
  * Save date formats.
  *
- * NOTE & TODO: there is a bug in date_format_save(), which doesn't save locales.
+ * NOTE & TODO: there is a limitation in date_format_save(), which doesn't save locales before enable the language.
  */
 function _profile_save_date_formats($formats, $type = 'short', $langcode = 'en') {
   $default_format = array(

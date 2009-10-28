@@ -18,7 +18,7 @@
 1.	Install Drupal.
 1.	Locate to "html" folder with your command line.
 1.	Run "drush" to list all available commands.
-1.	This package includes a drush command allows you to upgrade code of all contribute modules without installing them. Just run "drush update_allcode" and follow the instructions.
+1.	This package includes a drush command allows you to upgrade code of all contribute modules without installing them. Just run "drush update allcode" and follow the instructions.
 
 ## Create a new project
 
