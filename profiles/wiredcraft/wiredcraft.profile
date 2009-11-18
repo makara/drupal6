@@ -20,6 +20,8 @@ function wiredcraft_profile_modules() {
     'color', 'comment', 'help', 'menu', 'taxonomy', 'dblog',
     // Admin
     'admin',
+    // CTools
+    'ctools',
     // Views
     'views',
     // Context
@@ -150,7 +152,7 @@ function _profile_other_modules() {
     // Others
     'diff', 'jquery_ui', 'date_popup',
     // Development
-    'devel', 'admin_menu',
+    'devel', 'devel_generate', 'admin_menu',
     // Custom features
     'feature_permissions', 'feature_page',
     // Custom modules
