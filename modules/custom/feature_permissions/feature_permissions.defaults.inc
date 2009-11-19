@@ -34,8 +34,8 @@ function _feature_permissions_user_default_permissions() {
   $permissions[] = array(
     'name' => 'access comments',
     'roles' => array(
-      '0' => 'authenticated user',
-      '1' => 'admin',
+      '0' => 'admin',
+      '1' => 'authenticated user',
     ),
   );
 
@@ -43,9 +43,9 @@ function _feature_permissions_user_default_permissions() {
   $permissions[] = array(
     'name' => 'access content',
     'roles' => array(
-      '0' => 'anonymous user',
-      '1' => 'authenticated user',
-      '2' => 'admin',
+      '0' => 'admin',
+      '1' => 'anonymous user',
+      '2' => 'authenticated user',
     ),
   );
 
@@ -108,6 +108,14 @@ function _feature_permissions_user_default_permissions() {
   // Exported permission: administer content types
   $permissions[] = array(
     'name' => 'administer content types',
+    'roles' => array(
+      '0' => 'admin',
+    ),
+  );
+
+  // Exported permission: administer features
+  $permissions[] = array(
+    'name' => 'administer features',
     'roles' => array(
       '0' => 'admin',
     ),
@@ -225,12 +233,20 @@ function _feature_permissions_user_default_permissions() {
     ),
   );
 
+  // Exported permission: manage features
+  $permissions[] = array(
+    'name' => 'manage features',
+    'roles' => array(
+      '0' => 'admin',
+    ),
+  );
+
   // Exported permission: post comments
   $permissions[] = array(
     'name' => 'post comments',
     'roles' => array(
-      '0' => 'authenticated user',
-      '1' => 'admin',
+      '0' => 'admin',
+      '1' => 'authenticated user',
     ),
   );
 
@@ -238,8 +254,8 @@ function _feature_permissions_user_default_permissions() {
   $permissions[] = array(
     'name' => 'post comments without approval',
     'roles' => array(
-      '0' => 'authenticated user',
-      '1' => 'admin',
+      '0' => 'admin',
+      '1' => 'authenticated user',
     ),
   );
 
