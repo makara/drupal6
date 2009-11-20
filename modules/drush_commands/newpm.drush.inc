@@ -18,7 +18,8 @@ function newpm_drush_command() {
   $items = array();
   $items['update allcode'] = array(
     'drupal dependencies' => array('update'),
-    'description' => 'Update code of all modules, including not installed.'
+    'description' => 'Update code of all modules, including not installed.',
+    'aliases' => array('upall'),
   );
   return $items;
 }
