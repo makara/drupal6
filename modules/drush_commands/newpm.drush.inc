@@ -57,8 +57,13 @@ function drush_newpm_refresh() {
   // A fake/wrong/hack cache
   $module_array = module_rebuild_cache();
   foreach($module_array as $module) {
-    // Lie
-    $module->status = 1;
+    // Don't check things in cvs workspace
+    if (strpos($module->filename, 'cvs_workspace')) {
+      $module->status = 0;
+    }
+    else {
+      $module->status = 1;
+    }
   }
   _update_process_info_list($projects, $module_array, 'module');
   _update_cache_set('update_project_projects', $projects, time() + 600);
