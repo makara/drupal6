@@ -11,22 +11,3 @@ function feature_page_enable() {
   $theme_settings['toggle_node_info_page'] = FALSE;
   variable_set('theme_settings', $theme_settings);
 }
-
-/**
- * Implementation of hook_strongarm().
- */
-function feature_page_strongarm() {
-  $conf['node_options_page'] = array('status');
-
-  // Comments
-  $conf['comment_page'] = COMMENT_NODE_DISABLED;
-
-  // Disable Diff
-  $conf['show_preview_changes_page'] = FALSE;
-  $conf['show_diff_inline_page'] = FALSE;
-
-  // Pathauto settings
-  $conf['pathauto_node_page_pattern'] = '[title-raw]';
-
-  return $conf;
-}
