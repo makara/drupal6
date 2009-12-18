@@ -1,11 +1,22 @@
 <?php
-// $Id: strongarm.module,v 1.1.2.6.2.1 2009/11/20 22:51:18 yhahn Exp $
+// $Id: strongarm.module,v 1.1.2.6.2.6 2009/12/17 17:51:20 yhahn Exp $
 
 /**
  * Implementation of hook_init().
  */
 function strongarm_init() {
   strongarm_set_conf();
+
+  // This is a workaround for the very early check of the 'site_frontpage'
+  // variable in the Drupal bootstrap process. The workaround re-runs
+  // drupal_init_path() to ensure the strongarm'ed version of
+  // 'site_frontpage' is used. Note that this may be too late if other modules
+  // weighted even lower than strongarm (which is a superlightweight -1000)
+  // rely on $_GET['q'] or 'site_frontpage' in hook_init().
+  if (empty($_REQUEST['q'])) {
+    unset($_GET['q']);
+    drupal_init_path();
+  }
 }
 
 /**
@@ -21,15 +32,21 @@ function strongarm_set_conf($reset = FALSE) {
     $var_conf = $cache->data;
   }
   else {
+    // Ensure that the schema cache is not stale when we init.
+    $schema = drupal_get_schema('variable');
+    if (!isset($schema['export'])) {
+      drupal_get_schema('variable', TRUE);
+    }
+
+    $var_conf = array();
     ctools_include('export');
-    $vars = ctools_export_load_object('variable');
-    foreach ($vars as $var) {
+    foreach (ctools_export_load_object('variable') as $var) {
       $var_conf[$var->name] = $var->value;
     }
     cache_set('strongarm', $var_conf);
   }
   global $conf;
-  $conf = $var_conf;
+  $conf = array_merge($var_conf, $conf);
 }
 
 /**
@@ -94,8 +111,25 @@ function strongarm_schema_alter(&$schema) {
       'minimum_version' => 1,
       'current_version' => 1,
     ),
+    // We declare this explicitly -- otherwise, CTools will use
+    // 'system_export_variable' as the default export callback.
+    'export callback' => 'strongarm_export_variable',
   );
   $schema['variable']['fields']['value']['serialize'] = TRUE;
+}
+
+/**
+ * CTools export function.
+ *
+ * Workaround for var_export() #fail with stdClass objects. See:
+ * http://bugs.php.net/bug.php?id=48016&edit=1. A proper patch is in the
+ * CTools issue queue here: http://drupal.org/node/661332. Once this is
+ * committed & included in a CTools release, this workaround will no
+ * longer be necessary.
+ */
+function strongarm_export_variable($variable, $indent = '') {
+  $export = ctools_export_object('variable', $variable, $indent);
+  return str_replace('stdClass::__set_state(', '(object) (', $export);
 }
 
 /**
