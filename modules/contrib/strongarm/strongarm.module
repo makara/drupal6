@@ -1,5 +1,5 @@
 <?php
-// $Id: strongarm.module,v 1.1.2.6.2.6 2009/12/17 17:51:20 yhahn Exp $
+// $Id: strongarm.module,v 1.1.2.6.2.8 2010/01/05 04:25:03 yhahn Exp $
 
 /**
  * Implementation of hook_init().
@@ -13,10 +13,8 @@ function strongarm_init() {
   // 'site_frontpage' is used. Note that this may be too late if other modules
   // weighted even lower than strongarm (which is a superlightweight -1000)
   // rely on $_GET['q'] or 'site_frontpage' in hook_init().
-  if (empty($_REQUEST['q'])) {
-    unset($_GET['q']);
-    drupal_init_path();
-  }
+  $_GET['q'] = strongarm_language_strip($_REQUEST['q']);
+  drupal_init_path();
 }
 
 /**
@@ -47,6 +45,32 @@ function strongarm_set_conf($reset = FALSE) {
   }
   global $conf;
   $conf = array_merge($var_conf, $conf);
+}
+
+/**
+ * Remove the language prefix for a given path.
+ * Strongarm implements this itself as language_initialize() directly affects
+ * $_GET['q'] and cannot be reused.
+ */
+function strongarm_language_strip($path) {
+  // Configured presentation language mode.
+  $mode = variable_get('language_negotiation', LANGUAGE_NEGOTIATION_NONE);
+
+  // Get a list of enabled languages.
+  $languages = language_list('enabled');
+  $languages = $languages[1];
+
+  if (in_array($mode, array(LANGUAGE_NEGOTIATION_PATH_DEFAULT, LANGUAGE_NEGOTIATION_PATH))) {
+    $args = explode('/', $path);
+    $prefix = array_shift($args);
+    // Search prefix within enabled languages.
+    foreach ($languages as $language) {
+      if (!empty($language->prefix) && $language->prefix == $prefix) {
+        return implode('/', $args);
+      }
+    }
+  }
+  return $path;
 }
 
 /**

@@ -1,5 +1,5 @@
 <?php
-// $Id: strongarm.admin.inc,v 1.1.2.2.2.2 2009/12/17 17:51:20 yhahn Exp $
+// $Id: strongarm.admin.inc,v 1.1.2.2.2.3 2009/12/24 03:00:01 jmiccolis Exp $
 
 /**
  * Get a map of variable to culprit (implementers of hook_strongarm()).
@@ -89,8 +89,11 @@ function strongarm_admin_revert_submit(&$form, &$form_state) {
  * Display variables in a nicer way.
  */
 function _strongarm_readable($var) {
-  if (is_string($var) || is_bool($var) || is_numeric($var)) {
+  if (is_string($var) || is_numeric($var)) {
     return truncate_utf8($var, 30, TRUE, TRUE);
+  }
+  else if (is_bool($var)) {
+    return $var ? 'TRUE' : 'FALSE';
   }
   else if (is_array($var)) {
     $test = $detected = array();
