@@ -29,7 +29,7 @@ function wiredcraft_profile_modules() {
     // Views
     'views',
     // Context
-    'context', 'context_contrib',
+    'context',
     // Features
     'features',
     // Image
