@@ -90,7 +90,8 @@ function wiredcraft_profile_tasks(&$task, $url) {
   if ($task == 'install-configure') {
     $batch['title'] = st('Configuring @drupal', array('@drupal' => drupal_install_profile_name()));
     $batch['operations'][] = array('_profile_settings_extra', array());
-    $batch['operations'][] = array('_profile_finalize', array());
+    $batch['operations'][] = array('_profile_flush_cache', array());
+    $batch['operations'][] = array('_profile_init_blocks', array());
     $batch['operations'][] = array('drupal_cron_run', array());
     $batch['finished'] = '_profile_configure_finished';
     variable_set('install_task', 'install-configure-batch');

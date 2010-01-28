@@ -14,13 +14,6 @@ function _profile_batch_tasks() {
  * Basic settings, for Drupal core and modules in hook_profile_modules().
  */
 function _profile_settings_basic() {
-  // Performance
-  variable_set('cache', CACHE_NORMAL);
-  variable_set('block_cache', CACHE_NORMAL);
-  // Imageapi
-  variable_set('imageapi_jpeg_quality', 90);
-  // Site information
-  // ...
 }
 
 /**
@@ -32,6 +25,8 @@ function _profile_other_modules() {
     'strongarm',
     // CCK
     'content', 'optionwidgets', 'text', 'number', 'nodereference', 'userreference',
+    // Imagefield
+    'filefield', 'imagefield',
     // Date
     'date_api', 'date_timezone', 'date',
     // UIs
@@ -39,9 +34,9 @@ function _profile_other_modules() {
     // Others
     'diff', 'jquery_ui', 'date_popup',
     // Development
-    'devel', 'devel_generate', 'admin_menu',
+    'devel', 'devel_generate',
     // Custom features
-    'feature_permissions', 'feature_page',
+    'feature_permissions', 'feature_page', 'feature_settings',
     // Custom modules
     // ...
   );
@@ -51,9 +46,6 @@ function _profile_other_modules() {
  * Extra settings.
  */
 function _profile_settings_extra() {
-  // Date
-  variable_set('date_default_timezone_name', 'Asia/Shanghai');
-
   // Date format: date only
   $date_format_type = array('is_new'  => TRUE, 'type' => 'date_only', 'title' => 'Date only', 'locked' => 1);
   date_format_type_save($date_format_type);
@@ -79,10 +71,28 @@ function _profile_settings_extra() {
 /**
  * Flush caches.
  */
-function _profile_finalize() {
+function _profile_flush_cache() {
   module_rebuild_cache();
   drupal_get_schema(NULL, TRUE); // Clear schema DB cache
   drupal_flush_all_caches();
+}
+
+/**
+ * Init blocks.
+ */
+function _profile_init_blocks() {
+	global $custom_theme, $theme_key;
+	$backup = $custom_theme;
+
+  // Enable themes.
+  foreach (array('garland', 'rubik', 'cube') as $key) {
+    $custom_theme = $theme_key = $key;
+    _block_rehash();
+  }
+  // Disable all the blocks.
+  db_query("UPDATE {blocks} SET status = 0, weight = 0, region = ''");
+
+  $custom_theme = $backup;
 }
 
 /**
