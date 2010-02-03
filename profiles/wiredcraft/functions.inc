@@ -11,61 +11,41 @@ function _profile_batch_tasks() {
 }
 
 /**
- * Basic settings, for Drupal core and modules in hook_profile_modules().
+ * Set batch.
  */
-function _profile_settings_basic() {
+function _profile_batch_install_modules() {
+  $modules = _profile_settings_modules_extra();
+  $modules = _profile_check_module_dependencies($modules);
+  $files = module_rebuild_cache();
+  // Create batch.
+  foreach ($modules as $module) {
+    $batch['operations'][] = array('_install_module_batch', array($module, $files[$module]->info['name']));
+  }
+  $batch['finished'] = '_profile_install_modules_finished';
+  $batch['title'] = st('Installing other modules');
+  $batch['error_message'] = st('The installation has encountered an error.');
+  variable_set('install_task', 'install-modules-batch');
+  batch_set($batch);
+  batch_process($url, $url);
+
+  return;
 }
 
 /**
- * Other modules (contrib, custom, features...).
+ * Set batch.
  */
-function _profile_other_modules() {
-  return array(
-    // Strongarm
-    'strongarm',
-    // CCK
-    'content', 'optionwidgets', 'text', 'number', 'nodereference', 'userreference',
-    // Imagefield
-    'filefield', 'imagefield',
-    // Date
-    'date_api', 'date_timezone', 'date',
-    // UIs
-    'views_ui', 'context_ui', 'imagecache_ui',
-    // Others
-    'diff', 'jquery_ui', 'date_popup',
-    // Development
-    'devel', 'devel_generate',
-    // Custom features
-    'feature_permissions', 'feature_page', 'feature_settings',
-    // Custom modules
-    // ...
-  );
-}
+function _profile_batch_install_configure() {
+  $batch['title'] = st('Configuring @drupal', array('@drupal' => drupal_install_profile_name()));
+  $batch['operations'][] = array('_profile_settings_extra', array());
+  $batch['operations'][] = array('_profile_flush_cache', array());
+  $batch['operations'][] = array('_profile_init_blocks', array());
+  $batch['operations'][] = array('drupal_cron_run', array());
+  $batch['finished'] = '_profile_configure_finished';
+  variable_set('install_task', 'install-configure-batch');
+  batch_set($batch);
+  batch_process($url, $url);
 
-/**
- * Extra settings.
- */
-function _profile_settings_extra() {
-  // Date format: date only
-  $date_format_type = array('is_new'  => TRUE, 'type' => 'date_only', 'title' => 'Date only', 'locked' => 1);
-  date_format_type_save($date_format_type);
-  $formats = array(
-    array('format' => 'Y-m-d', 'default' => TRUE),
-    array('format' => 'm/d/Y'),
-    array('format' => 'd/m/Y'),
-    array('format' => 'Y/m/d'),
-  );
-  _profile_save_date_formats($formats, 'date_only');
-
-  // Date format: time only
-  $date_format_type = array('is_new'  => TRUE, 'type' => 'time_only', 'title' => 'Time only', 'locked' => 1);
-  date_format_type_save($date_format_type);
-  $formats = array(
-    array('format' => 'H:i', 'default' => TRUE),
-    array('format' => 'g:ia'),
-    array('format' => 'G:i'),
-  );
-  _profile_save_date_formats($formats, 'time_only');
+  return;
 }
 
 /**

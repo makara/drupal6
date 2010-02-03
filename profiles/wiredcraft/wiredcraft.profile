@@ -3,6 +3,7 @@
 
 if (is_string($profile)) {
   include_once './profiles/'. $profile .'/functions.inc';
+  include_once './profiles/'. $profile .'/settings.inc';
 }
 
 /**
@@ -19,23 +20,7 @@ function wiredcraft_profile_details() {
  * Implementation of hook_profile_modules().
  */
 function wiredcraft_profile_modules() {
-  $modules = array(
-    // Drupal core
-    'color', 'comment', 'help', 'menu', 'taxonomy', 'dblog',
-    // Admin
-    'admin',
-    // CTools
-    'ctools',
-    // Views
-    'views',
-    // Context
-    'context',
-    // Features
-    'features',
-    // Image
-    'imageapi', 'imageapi_gd', 'imagecache',
-  );
-  return $modules;
+  return _profile_settings_modules_basic();
 }
 
 /**
@@ -69,34 +54,14 @@ function wiredcraft_profile_tasks(&$task, $url) {
 
   // Install other modules.
   if ($task == 'install-modules') {
-    $modules = _profile_other_modules();
-    $modules = _profile_check_module_dependencies($modules);
-    $files = module_rebuild_cache();
-    // Create batch.
-    foreach ($modules as $module) {
-      $batch['operations'][] = array('_install_module_batch', array($module, $files[$module]->info['name']));
-    }
-    $batch['finished'] = '_profile_install_modules_finished';
-    $batch['title'] = st('Installing other modules');
-    $batch['error_message'] = st('The installation has encountered an error.');
-    variable_set('install_task', 'install-modules-batch');
-    batch_set($batch);
-    batch_process($url, $url);
+    _profile_batch_install_modules();
     // For CLI
     return;
   }
 
   // Additional configurations.
   if ($task == 'install-configure') {
-    $batch['title'] = st('Configuring @drupal', array('@drupal' => drupal_install_profile_name()));
-    $batch['operations'][] = array('_profile_settings_extra', array());
-    $batch['operations'][] = array('_profile_flush_cache', array());
-    $batch['operations'][] = array('_profile_init_blocks', array());
-    $batch['operations'][] = array('drupal_cron_run', array());
-    $batch['finished'] = '_profile_configure_finished';
-    variable_set('install_task', 'install-configure-batch');
-    batch_set($batch);
-    batch_process($url, $url);
+    _profile_batch_install_configure();
     // For CLI
     return;
   }
