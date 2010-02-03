@@ -13,7 +13,7 @@ function _profile_batch_tasks() {
 /**
  * Set batch.
  */
-function _profile_batch_install_modules() {
+function _profile_batch_install_modules($url) {
   $modules = _profile_settings_modules_extra();
   $modules = _profile_check_module_dependencies($modules);
   $files = module_rebuild_cache();
@@ -34,12 +34,11 @@ function _profile_batch_install_modules() {
 /**
  * Set batch.
  */
-function _profile_batch_install_configure() {
+function _profile_batch_install_configure($url) {
   $batch['title'] = st('Configuring @drupal', array('@drupal' => drupal_install_profile_name()));
   $batch['operations'][] = array('_profile_settings_extra', array());
   $batch['operations'][] = array('_profile_flush_cache', array());
   $batch['operations'][] = array('_profile_init_blocks', array());
-  $batch['operations'][] = array('drupal_cron_run', array());
   $batch['finished'] = '_profile_configure_finished';
   variable_set('install_task', 'install-configure-batch');
   batch_set($batch);
@@ -62,17 +61,25 @@ function _profile_flush_cache() {
  */
 function _profile_init_blocks() {
 	global $custom_theme, $theme_key;
-	$backup = $custom_theme;
+	$backup_custom_theme = $custom_theme;
+	$backup_theme_key = $theme_key;
 
   // Enable themes.
-  foreach (array('garland', 'rubik', 'cube') as $key) {
+  foreach (_profile_settings_themes() as $key) {
     $custom_theme = $theme_key = $key;
+    db_query("UPDATE {system} SET status = 1 WHERE type = 'theme' and name = '%s'", $key);
     _block_rehash();
+    // Set default theme.
+    if (_profile_settings_theme_default() == $key) {
+      variable_set('theme_default', $key);
+      $backup_custom_theme = $backup_theme_key = $key;
+    }
   }
   // Disable all the blocks.
   db_query("UPDATE {blocks} SET status = 0, weight = 0, region = ''");
 
-  $custom_theme = $backup;
+  $custom_theme = $backup_custom_theme;
+  $theme_key = $backup_theme_key;
 }
 
 /**

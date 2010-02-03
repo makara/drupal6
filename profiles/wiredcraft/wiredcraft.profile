@@ -54,14 +54,14 @@ function wiredcraft_profile_tasks(&$task, $url) {
 
   // Install other modules.
   if ($task == 'install-modules') {
-    _profile_batch_install_modules();
+    _profile_batch_install_modules($url);
     // For CLI
     return;
   }
 
   // Additional configurations.
   if ($task == 'install-configure') {
-    _profile_batch_install_configure();
+    _profile_batch_install_configure($url);
     // For CLI
     return;
   }

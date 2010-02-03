@@ -41,13 +41,27 @@ function _profile_settings_modules_extra() {
     'views_ui', 'context_ui', 'imagecache_ui',
     // Others
     'diff', 'jquery_ui', 'date_popup',
-    // Development
-    'devel', 'devel_generate',
     // Custom features
     'feature_permissions', 'feature_page', 'feature_settings',
     // Custom modules
     // ...
+    // Development
+    'devel', 'devel_generate',
   );
+}
+
+/**
+ * Enable these themes.
+ */
+function _profile_settings_themes() {
+  return array('garland', 'rubik', 'cube', 'ninesixty');
+}
+
+/**
+ * Default to this theme.
+ */
+function _profile_settings_theme_default() {
+  return 'garland';
 }
 
 /**
