@@ -38,6 +38,8 @@ function _profile_batch_install_configure($url) {
   $batch['title'] = st('Configuring @drupal', array('@drupal' => drupal_install_profile_name()));
   $batch['operations'][] = array('_profile_settings_extra', array());
   $batch['operations'][] = array('_profile_flush_cache', array());
+  $batch['operations'][] = array('_profile_revert_features', array());
+  $batch['operations'][] = array('_profile_flush_cache', array());
   $batch['operations'][] = array('_profile_init_blocks', array());
   $batch['finished'] = '_profile_configure_finished';
   variable_set('install_task', 'install-configure-batch');
@@ -80,6 +82,28 @@ function _profile_init_blocks() {
 
   $custom_theme = $backup_custom_theme;
   $theme_key = $backup_theme_key;
+}
+
+/**
+ * Revert all features
+ */
+function _profile_revert_features() {
+  module_load_include('inc', 'features', 'features.export');
+  features_include();
+
+  $restore_states = array(FEATURES_OVERRIDDEN, FEATURES_REBUILDABLE, FEATURES_NEEDS_REVIEW);
+
+  $items = array();
+  $states = features_get_component_states(array(), FALSE, TRUE);
+  foreach ($states as $module_name => $components) {
+    foreach ($components as $component => $state) {
+      if (in_array($state, $restore_states)) {
+        $items[$module_name][] = $component;
+      }
+    }
+  }
+
+  features_revert($items);
 }
 
 /**
