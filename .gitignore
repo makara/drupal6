@@ -12,3 +12,4 @@ Entries.Log
 !/html/sites/default/default.settings.php
 
 html/backup
+*.mo
