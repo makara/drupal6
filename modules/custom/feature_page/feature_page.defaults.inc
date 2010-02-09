@@ -7,7 +7,7 @@ function _feature_page_ctools_plugin_api() {
   $args = func_get_args();
   $module = array_shift($args);
   $api = array_shift($args);
-  if ($module == "system" && $api == "strongarm") {
+  if ($module == "strongarm" && $api == "strongarm") {
     return array("version" => 1);
   }
 }
