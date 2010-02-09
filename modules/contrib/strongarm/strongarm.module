@@ -1,5 +1,5 @@
 <?php
-// $Id: strongarm.module,v 1.1.2.6.2.8 2010/01/05 04:25:03 yhahn Exp $
+// $Id: strongarm.module,v 1.1.2.6.2.9 2010/02/06 01:17:08 yhahn Exp $
 
 /**
  * Implementation of hook_init().
@@ -130,30 +130,13 @@ function strongarm_schema_alter(&$schema) {
     'identifier' => 'strongarm',
     'default hook' => 'strongarm',
     'api' => array(
-      'owner' => 'system',
+      'owner' => 'strongarm',
       'api' => 'strongarm',
       'minimum_version' => 1,
       'current_version' => 1,
     ),
-    // We declare this explicitly -- otherwise, CTools will use
-    // 'system_export_variable' as the default export callback.
-    'export callback' => 'strongarm_export_variable',
   );
   $schema['variable']['fields']['value']['serialize'] = TRUE;
-}
-
-/**
- * CTools export function.
- *
- * Workaround for var_export() #fail with stdClass objects. See:
- * http://bugs.php.net/bug.php?id=48016&edit=1. A proper patch is in the
- * CTools issue queue here: http://drupal.org/node/661332. Once this is
- * committed & included in a CTools release, this workaround will no
- * longer be necessary.
- */
-function strongarm_export_variable($variable, $indent = '') {
-  $export = ctools_export_object('variable', $variable, $indent);
-  return str_replace('stdClass::__set_state(', '(object) (', $export);
 }
 
 /**
