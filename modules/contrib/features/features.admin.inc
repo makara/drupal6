@@ -1,5 +1,5 @@
 <?php
-// $Id: features.admin.inc,v 1.1.2.41 2009/12/21 16:45:11 yhahn Exp $
+// $Id: features.admin.inc,v 1.1.2.44 2010/02/07 07:36:02 yhahn Exp $
 
 /**
  * Form callback for features export form. Acts as a router based on the form_state.
@@ -141,6 +141,11 @@ function features_export_form_validate_field($element, &$form_state) {
       if (!preg_match('!^[a-z0-9_]+$!', $element['#value'])) {
         form_error($element, t('The machine-readable name must contain only lowercase letters, numbers, and underscores.'));
       }
+      // If user is filling out the feature name for the first time and uses
+      // the name of an existing module throw an error.
+      else if (empty($element['#default_value']) && features_get_info('module', $element['#value'])) {
+        form_error($element, t('A module by the name @name already exists on your site. Please choose a different name.', array('@name' => $element['#value'])));
+      }
       break;
     case 'project_status_url':
       if (!empty($element['#value']) && !valid_url($element['#value'])) {
@@ -148,7 +153,7 @@ function features_export_form_validate_field($element, &$form_state) {
       }
       break;
     case 'version':
-      preg_match('/^(?<core>\d+\.x)-(?<major>\d+)\.(?<patch>\d+)-?(?<extra>\w+)?$/', $element['#value'], $matches);
+      preg_match('/^(?P<core>\d+\.x)-(?P<major>\d+)\.(?P<patch>\d+)-?(?P<extra>\w+)?$/', $element['#value'], $matches);
       if (!empty($element['#value']) && !isset($matches['core'], $matches['major'])) {
         form_error($element, t('Please enter a valid version with core and major version number. Example: !example', array('!example' => '6.x-1.0')));
       };
@@ -545,6 +550,12 @@ function features_cleanup_form($form_state, $cache_clear = FALSE) {
   // Clear caches if we're getting a post-submit redirect that requests it.
   if ($cache_clear) {
     drupal_flush_all_caches();
+
+    // The following functions need to be run because drupal_flush_all_caches()
+    // runs rebuilds in the wrong order. The node type cache is rebuilt *after*
+    // the menu is rebuilt, meaning that the menu tree is stale in certain
+    // circumstances after drupal_flush_all_caches(). We rebuild again.
+    menu_rebuild();
   }
 
   // Retrieve orphaned modules and provide them as optional modules to be disabled.

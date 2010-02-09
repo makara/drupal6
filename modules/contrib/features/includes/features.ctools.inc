@@ -1,5 +1,5 @@
 <?php
-// $Id: features.ctools.inc,v 1.1.2.12 2009/12/21 15:31:45 yhahn Exp $
+// $Id: features.ctools.inc,v 1.1.2.16 2010/02/06 02:16:45 yhahn Exp $
 
 /**
  * This is a wild hack, but effective.
@@ -31,6 +31,7 @@ foreach (_ctools_features_get_info() as $component => $info) {
 function ctools_features_api() {
   return array(
     'ctools' => array(
+      'name' => 'CTools export API',
       'default_hook' => 'ctools_plugin_api',
       'feature_source' => TRUE,
       'duplicates' => FEATURES_DUPLICATES_ALLOWED,
@@ -119,6 +120,7 @@ function ctools_component_features_export_options($component) {
       $options = drupal_map_assoc(array_keys($objects));
     }
   }
+  ksort($options);
   return $options;
 }
 
@@ -165,16 +167,18 @@ function ctools_component_features_export_render($component, $module = 'foo', $d
     foreach ($data as $object) {
       $identifier = $schema['export']['identifier'];
       $objects = ctools_export_load_object($component, 'names', array($object));
-      // Support objects that have a defined export callback, but fall back to.
-      // ctools_export_object().
-      if (function_exists($schema['export']['export callback'])) {
-        $code .= $schema['export']['export callback']($objects[$object], '  ');
+      if (!empty($objects[$object])) {
+        // Support objects that have a defined export callback, but fall back to.
+        // ctools_export_object().
+        if (function_exists($schema['export']['export callback'])) {
+          $code .= $schema['export']['export callback']($objects[$object], '  ');
+        }
+        else {
+          $code .= ctools_export_object($component, $objects[$object], '  ', $identifier);
+        }
+        $code .= "\n";
+        $code .= '  $export[\''. $object .'\'] = $'. $identifier .';'."\n";
       }
-      else {
-        $code .= ctools_export_object($component, $objects[$object], '  ', $identifier);
-      }
-      $code .= "\n";
-      $code .= '  $export[\''. $object .'\'] = $'. $identifier .';'."\n";
     }
     $code .= '  return $export;';
   }
@@ -203,15 +207,19 @@ function _ctools_features_get_info($reset = FALSE) {
   static $components;
   if (!isset($components) || $reset) {
     $components = array();
+    $modules = features_get_info();
     ctools_include('export');
     foreach (ctools_export_get_schemas_by_module() as $module => $schemas) {
       foreach ($schemas as $table => $schema) {
         if ($schema['export']['bulk export']) {
+          // Let the API owner take precedence as the owning module.
+          $api_module = isset($schema['export']['api']['owner']) ? $schema['export']['api']['owner'] : $module;
           $components[$table] = array(
+            'name' => isset($modules[$api_module]->info['name']) ? $modules[$api_module]->info['name'] : $api_module,
             'api' => $schema['export']['api']['api'],
             'default_hook' => $schema['export']['default hook'],
             'current_version' => $schema['export']['api']['current_version'],
-            'module' => $module,
+            'module' => $api_module,
             'feature_source' => TRUE,
           );
         }
