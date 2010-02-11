@@ -1,5 +1,5 @@
 <?php
-// $Id: context_condition_views.inc,v 1.1.2.1 2009/12/14 22:34:05 yhahn Exp $
+// $Id: context_condition_views.inc,v 1.1.2.4 2010/02/09 04:38:01 yhahn Exp $
 
 class context_condition_views extends context_condition {
 
@@ -21,10 +21,8 @@ class context_condition_views extends context_condition {
           if ($display->display_plugin == 'page') {
             $displays[$view->name .":". $id] = "-- {$display->display_title}";
           }
-        }      
-        if (count($displays)) {
-          $enabled_views += $displays;
         }
+        $enabled_views += $displays;
       }
     }
     ksort($enabled_views);
@@ -32,23 +30,17 @@ class context_condition_views extends context_condition {
   }
 
   function execute($view) {
-    $this->values[$view->name] = array();
-    $this->values["{$view->name}:{$view->current_display}"] = array();
     switch ($view->display_handler->display->display_plugin) {
       case 'page':
       case 'calendar':
         // Set contexts for this view.
-        $contexts = $this->get_contexts($view->name);
-        foreach ($contexts as $context) {
-          $this->values[$view->name][] = $context->name;
-          context_set('context', $context->name, $context);
+        foreach ($this->get_contexts($view->name) as $context) {
+          $this->condition_met($context, $view->name);
         }
         // Set any contexts associated with the current display
         if (!empty($view->current_display)) {
-          $contexts = $this->get_contexts("{$view->name}:{$view->current_display}");
-          foreach ($contexts as $context) {
-            $this->values["{$view->name}:{$view->current_display}"][] = $context->name;
-            context_set('context', $context->name, $context);
+          foreach ($this->get_contexts("{$view->name}:{$view->current_display}") as $context) {
+            $this->condition_met($context, "{$view->name}:{$view->current_display}");
           }
         }
         break;

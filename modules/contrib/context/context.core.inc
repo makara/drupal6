@@ -1,5 +1,5 @@
 <?php
-// $Id: context.core.inc,v 1.1.2.3.2.20.2.5 2010/01/12 13:07:45 yhahn Exp $
+// $Id: context.core.inc,v 1.1.2.3.2.20.2.13 2010/02/09 18:04:59 yhahn Exp $
 
 /**
  * Implementation of hook_context_registry().
@@ -24,7 +24,7 @@ function context_context_registry() {
     ),
     'user' => array(
       'title' => t('User'),
-      'description' => t('Set this context when a user with selected role(s) is viewed.'),
+      'description' => t('Set this context when the current user has one of the selected role(s).'),
       'plugin' => 'context_condition_user',
     ),
     'menu' => array(
@@ -50,6 +50,20 @@ function context_context_registry() {
       'title' => t('Book root'),
       'description' => t('Set this context when viewing a node whose root book is of the selected type.'),
       'plugin' => 'context_condition_bookroot',
+    );
+  }
+  if (module_exists('locale')) {
+    $registry['conditions']['language'] = array(
+      'title' => t('Language'),
+      'description' => t('Set this context when viewing the site in the selected language.'),
+      'plugin' => 'context_condition_language',
+    );
+  }
+  if (module_exists('taxonomy')) {
+    $registry['conditions']['node_taxonomy'] = array(
+      'title' => t('Taxonomy'),
+      'description' => t('Set this context when viewing a node with the selected taxonomy terms.'),
+      'plugin' => 'context_condition_node_taxonomy',
     );
   }
   $registry['reactions'] = array(
@@ -128,6 +142,11 @@ function context_theme() {
     'template' => 'context-block-editable-region',
     'file' => 'context_reaction_block.theme.inc',
   );
+  $items['context_block_script_placeholder'] = array(
+    'arguments' => array('text' => NULL),
+    'path' => drupal_get_path('module', 'context') . '/theme',
+    'file' => 'context_reaction_block.theme.inc',
+  );
   return $items;
 }
 
@@ -136,10 +155,16 @@ function context_theme() {
  */
 function context_theme_registry_alter(&$theme_registry) {
   // Push theme_page() through a context_preprocess to provide
-  // context-sensitive menus and variables.
-  if (!in_array('context_preprocess_page', $theme_registry['page']['preprocess functions'])) {
-    $theme_registry['page']['preprocess functions'][] = 'context_preprocess_page';
+  // context-sensitive menus and variables. Ensure that
+  // context_preprocess_page() comes immediately after
+  // template_preprocess_page().
+  if ($position = array_search('context_preprocess_page', $theme_registry['page']['preprocess functions'])) {
+    unset($theme_registry['page']['preprocess functions'][$position]);
   }
+  $position = array_search('template_preprocess_page', $theme_registry['page']['preprocess functions']);
+  $position = $position ? $position + 1 : 2;
+  array_splice($theme_registry['page']['preprocess functions'], $position, 0, 'context_preprocess_page');
+
   // Add a page preprocess function to the very top of the theme_page()
   // stack so that we can actually set contexts *before* the page theming
   // is executed.
@@ -158,21 +183,26 @@ function context_theme_registry_alter(&$theme_registry) {
 }
 
 /**
+ * Implementation of hook_ctools_render_alter().
+ * Used to detect the presence of a page manager node view or node form.
+ */
+function context_ctools_render_alter($info, $page, $args, $contexts, $task, $subtask) {
+  if ($page && in_array($task['name'], array('node_view', 'node_edit'), TRUE)) {
+    foreach ($contexts as $ctools_context) {
+      if ($ctools_context->type === 'node' && !empty($ctools_context->data)) {
+        context_node_condition($ctools_context->data, $task['name'] === 'node_view' ? 'view' : 'form');
+        break;
+      }
+    }
+  }
+}
+
+/**
  * Implementation of hook_nodeapi().
  */
 function context_nodeapi(&$node, $op, $teaser, $page) {
   if ($op == 'view' && $page && menu_get_object() === $node) {
-    if ($plugin = context_get_plugin('condition', 'node')) {
-      $plugin->execute($node, $op);
-    }
-    if (module_exists('book')) {
-      if ($plugin = context_get_plugin('condition', 'book')) {
-        $plugin->execute($node, $op);
-      }
-      if ($plugin = context_get_plugin('condition', 'bookroot')) {
-        $plugin->execute($node, $op);
-      }
-    }
+    context_node_condition($node, 'view');
   }
 }
 
@@ -182,17 +212,33 @@ function context_nodeapi(&$node, $op, $teaser, $page) {
 function context_form_alter(&$form, $form_state, $form_id) {
   // Prevent this from firing on admin pages... damn form driven apis...
   if ($form['#id'] === 'node-form' && arg(0) != 'admin') {
-    if ($plugin = context_get_plugin('condition', 'node')) {
-      $plugin->execute($form['#node'], 'form');
-    }
-    if (module_exists('book')) {
-      if ($plugin = context_get_plugin('condition', 'bookroot')) {
-        $plugin->execute($form['#node'], $op);
-      }
+    context_node_condition($form['#node'], 'form');
+  }
+  else if ($form_id == 'system_modules') {
+    context_invalidate_cache();
+  }
+}
+
+/**
+ * Centralized node condition call function for the ever increasing number of
+ * ways to get at a node view / node form.
+ */
+function context_node_condition(&$node, $op) {
+  if ($plugin = context_get_plugin('condition', 'node')) {
+    $plugin->execute($node, $op);
+  }
+  if (module_exists('taxonomy')) {
+    if ($plugin = context_get_plugin('condition', 'node_taxonomy')) {
+      $plugin->execute($node, $op);
     }
   }
-  if ($form_id == 'system_modules') {
-    context_invalidate_cache();
+  if (module_exists('book')) {
+    if ($plugin = context_get_plugin('condition', 'book')) {
+      $plugin->execute($node, $op);
+    }
+    if ($plugin = context_get_plugin('condition', 'bookroot')) {
+      $plugin->execute($node, $op);
+    }
   }
 }
 
@@ -203,17 +249,6 @@ function context_form_comment_form_alter(&$form, $form_state) {
   if ($nid = $form['nid']['#value']) {
     $plugin = context_get_plugin('condition', 'node');
     $plugin->execute($node = node_load($nid), 'comment');
-  }
-}
-
-/**
- * Implementation of hook_user().
- */
-function context_user($op, &$edit, &$account, $category = NULL) {
-  if ($op == 'view') {
-    if ($plugin = context_get_plugin('condition', 'user')) {
-      $plugin->execute($account, $op);
-    }
   }
 }
 
@@ -295,6 +330,9 @@ function context_page_alter(&$vars) {
 function context_context_page_condition() {
   if ($plugin = context_get_plugin('condition', 'menu')) {
     $plugin->execute();
+  }
+  if ($plugin = context_get_plugin('condition', 'sitewide')) {
+    $plugin->execute(1);
   }
 }
 

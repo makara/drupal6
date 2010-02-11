@@ -1,5 +1,5 @@
 <?php
-// $Id: context_reaction_block.inc,v 1.1.2.7 2010/01/10 05:26:40 yhahn Exp $
+// $Id: context_reaction_block.inc,v 1.1.2.15 2010/02/10 15:45:50 yhahn Exp $
 
 /**
  * Expose blocks as context reactions.
@@ -113,6 +113,7 @@ class context_reaction_block extends context_reaction {
     $form = array();
     if (module_exists('jquery_ui')) {
       jquery_ui_add(array('ui.draggable', 'ui.droppable', 'ui.sortable'));
+      drupal_add_js(drupal_get_path('module', 'context_ui') .'/json2.js');
       drupal_add_js(drupal_get_path('module', 'context') .'/plugins/context_reaction_block.js');
       drupal_add_css(drupal_get_path('module', 'context') .'/plugins/context_reaction_block.css');
 
@@ -122,6 +123,7 @@ class context_reaction_block extends context_reaction {
         $settings = array(
           'path' => $_GET['q'],
           'ajax' => url('context/ajax-block-view'),
+          'scriptPlaceholder' => theme('context_block_script_placeholder', ''),
         );
         drupal_add_js(array('contextBlockEditor' => $settings), 'setting');
         $once = TRUE;
@@ -180,11 +182,6 @@ class context_reaction_block extends context_reaction {
    * Execute.
    */
   function execute($region) {
-    // Bail if this region is disabled.
-    // $disabled_regions = context_active_values('theme_regiontoggle');
-    // if (!empty($disabled_regions) && in_array($region, $disabled_regions)) {
-    //   return '';
-    // }
     return $this->render_editable($region);
   }
 
@@ -192,7 +189,12 @@ class context_reaction_block extends context_reaction {
    * Render a region with editable markup.
    */
   protected function render_editable($region) {
-    if (module_exists('jquery_ui')) {
+    // Generally speaking, it does not make sense to allow anonymous users to
+    // edit a context inline. Though it may be possible to save (and restore)
+    // an edited context to an anonymous user's cookie or session, it's an
+    // edge case and probably not something we want to encourage anyway.
+    global $user;
+    if (module_exists('jquery_ui') && $user->uid) {
       jquery_ui_add(array('ui.draggable', 'ui.droppable', 'ui.sortable'));
       drupal_add_js(drupal_get_path('module', 'context') .'/plugins/context_reaction_block.js');
       drupal_add_css(drupal_get_path('module', 'context') .'/plugins/context_reaction_block.css');
@@ -316,18 +318,13 @@ class context_reaction_block extends context_reaction {
    * @return
    *   A keyed (by "module_delta" convention) array of blocks.
    */
-  function get_blocks($region = NULL, $context = NULL) {
+  function get_blocks($region = NULL, $context = NULL, $reset = FALSE) {
     static $block_info;
 
-    if (!isset($block_info)) {
-      $block_info = array();
-      // Retrieve blocks from cache.
-      $cache = cache_get('context_block_info', 'cache');
-      if ($cache && !empty($cache->data)) {
-        $block_info = $cache->data;
-      }
-      // Gather blocks from code.
-      else {
+    if (!isset($block_info) || $reset) {
+      $block_info = empty($reset) ? context_cache_get('block_info') : array();
+      if (empty($block_info)) {
+        $block_info = array();
         foreach (module_implements('block') as $module) {
           $module_blocks = module_invoke($module, 'block', 'list');
           if (!empty($module_blocks)) {
@@ -340,17 +337,20 @@ class context_reaction_block extends context_reaction {
             }
           }
         }
-        // Gather only region info from the database.
-        $theme_key = variable_get('theme_default', 'garland');
-        $result = db_query("SELECT module,weight,delta,region,status FROM {blocks} WHERE theme = '%s' ORDER BY weight ASC", $theme_key);
-        while ($row = db_fetch_object($result)) {
-          if ($row->status && isset($block_info["{$row->module}-{$row->delta}"])) {
-            $block_info["{$row->module}-{$row->delta}"]->weight = $row->weight;
-            $block_info["{$row->module}-{$row->delta}"]->region = $row->region;
-          }
+        context_cache_set('block_info', $block_info);
+      }
+      // Allow other modules that may declare blocks dynamically to alter
+      // this list.
+      drupal_alter('context_block_info', $block_info);
+
+      // Gather only region info from the database.
+      $theme_key = variable_get('theme_default', 'garland');
+      $result = db_query("SELECT module,weight,delta,region,status FROM {blocks} WHERE theme = '%s' ORDER BY weight ASC", $theme_key);
+      while ($row = db_fetch_object($result)) {
+        if ($row->status && isset($block_info["{$row->module}-{$row->delta}"])) {
+          $block_info["{$row->module}-{$row->delta}"]->weight = $row->weight;
+          $block_info["{$row->module}-{$row->delta}"]->region = $row->region;
         }
-        // Set the cache.
-        cache_set('context_block_info', $block_info, 'cache');
       }
     }
 
@@ -456,6 +456,10 @@ class context_reaction_block extends context_reaction {
    */
   function ajax($args) {
     if (isset($_GET['bid'], $_GET['context'])) {
+      // Set the header right away. This will inform any players in the stack
+      // that we are in the middle of responding to an AJAX request.
+      drupal_set_header('Content-Type: text/javascript; charset=utf-8');
+
       $bid = $_GET['bid'];
       $context = $_GET['context'];
       list($module, $delta) = explode('-', $bid, 2);
@@ -479,11 +483,12 @@ class context_reaction_block extends context_reaction {
         $block->region = '';
 
         $block_view = module_invoke($module, 'block', 'view', $delta);
-        if (!empty($block_view) && !empty($block_view['content'])) {
-          $block->content = $block_view['content'];
-          $block->subject = $block_view['subject'];
+        if (!empty($block_view)) {
+          foreach ($block_view as $k => $v) {
+            $block->{$k} = $v;
+          }
         }
-        else {
+        if (empty($block->content)) {
           $block->content = "<div class='context-block-empty'>". t('This block appears empty when displayed on this page.') ."</div>";
         }
         $block = $this->build_block($block);
@@ -505,7 +510,7 @@ class context_reaction_block extends context_reaction {
           }
         }
 
-        drupal_json(array(
+        echo drupal_to_js(array(
           'status' => 1,
           'block' => theme('context_block_editable_block', $block),
           'css' => $css,
@@ -513,7 +518,7 @@ class context_reaction_block extends context_reaction {
         exit;
       }
     }
-    drupal_json(array('status' => 0));
+    echo drupal_to_js(array('status' => 0));
     exit;
   }
 }

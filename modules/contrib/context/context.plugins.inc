@@ -1,5 +1,5 @@
 <?php
-// $Id: context.plugins.inc,v 1.1.2.2 2010/01/10 07:07:45 yhahn Exp $
+// $Id: context.plugins.inc,v 1.1.2.4 2010/02/09 17:05:22 yhahn Exp $
 
 /**
  * Context plugins.
@@ -57,6 +57,26 @@ function _context_context_plugins() {
       'parent' => 'context_condition',
     ),
   );
+  if (module_exists('taxonomy')) {
+    $plugins['context_condition_node_taxonomy'] = array(
+      'handler' => array(
+        'path' => drupal_get_path('module', 'context') .'/plugins',
+        'file' => 'context_condition_node_taxonomy.inc',
+        'class' => 'context_condition_node_taxonomy',
+        'parent' => 'context_condition_node',
+      ),
+    );
+  }
+  if (module_exists('locale')) {
+    $plugins['context_condition_language'] = array(
+      'handler' => array(
+        'path' => drupal_get_path('module', 'context') .'/plugins',
+        'file' => 'context_condition_language.inc',
+        'class' => 'context_condition_language',
+        'parent' => 'context_condition',
+      ),
+    );
+  }
   if (module_exists('book')) {
     $plugins['context_condition_book'] = array(
       'handler' => array(

@@ -1,5 +1,5 @@
 <?php
-// $Id: context_ui.admin.inc,v 1.1.2.7.2.12.2.2 2009/12/22 19:29:35 yhahn Exp $
+// $Id: context_ui.admin.inc,v 1.1.2.7.2.12.2.3 2010/02/09 04:38:01 yhahn Exp $
 
 /**
  * Context listing form. Allows for quick creation of new contexts.
@@ -130,6 +130,14 @@ function context_ui_form(&$form_state, $op, $context = NULL) {
     '#maxlength' => 255,
     '#default_value' => isset($context->description) ? $context->description: '',
     '#description' => t('The description of this context definition.'),
+  );
+
+  // Condition mode
+  $form['condition_mode'] = array(
+    '#type' => 'checkbox',
+    '#default_value' => isset($context->condition_mode) ? $context->condition_mode : FALSE,
+    '#title' => t('Require all conditions'),
+    '#description' => t('If checked, all conditions must be met for this context to be active. Otherwise, the first condition that is met will activate this context.')
   );
 
   // Condition plugin forms
@@ -368,6 +376,7 @@ function context_ui_form_process($form) {
   $context->name = isset($form['name']) ? $form['name'] : NULL;
   $context->description = isset($form['description']) ? $form['description'] : NULL;
   $context->tag = isset($form['tag']) ? $form['tag'] : NULL;
+  $context->condition_mode = isset($form['condition_mode']) ? $form['condition_mode'] : NULL;
   $context->conditions = array();
   $context->reactions = array();
   if (!empty($form['conditions'])) {

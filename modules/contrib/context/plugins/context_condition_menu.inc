@@ -1,5 +1,5 @@
 <?php
-// $Id: context_condition_menu.inc,v 1.1.2.1 2009/12/14 22:34:05 yhahn Exp $
+// $Id: context_condition_menu.inc,v 1.1.2.2 2010/02/09 04:38:01 yhahn Exp $
 
 /**
  * Expose menu items as a context condition.
@@ -38,11 +38,9 @@ class context_condition_menu extends context_condition {
     // and menu_get_active_menu_name() for the details.
     $trail = menu_get_active_trail();
     foreach ($trail as $item) {
-      $this->values[$item['href']] = array();
-      if (!empty($item['href']) && $contexts = $this->get_contexts($item['href'])) {
-        foreach ($contexts as $context) {
-          $this->values[$item['href']][] = $condition->name;
-          context_set('context', $context->name, $context);
+      if (!empty($item['href'])) {
+        foreach ($this->get_contexts($item['href']) as $context) {
+          $this->condition_met($context, $item['href']);
         }
       }
     }

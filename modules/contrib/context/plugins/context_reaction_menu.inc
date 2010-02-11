@@ -1,5 +1,5 @@
 <?php
-// $Id: context_reaction_menu.inc,v 1.1.2.1 2009/12/14 22:34:05 yhahn Exp $
+// $Id: context_reaction_menu.inc,v 1.1.2.2 2010/02/04 00:31:12 yhahn Exp $
 
 /**
  * Expose menu items as context reactions.
@@ -114,7 +114,6 @@ class context_reaction_menu extends context_reaction {
       $path = current($active_paths);
       if (menu_get_item($path)) {
         menu_set_active_item($path);
-        break;
       }
     }
 

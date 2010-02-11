@@ -1,4 +1,4 @@
-// $Id: context_reaction_block.js,v 1.1.2.10 2010/01/08 20:48:22 yhahn Exp $
+// $Id: context_reaction_block.js,v 1.1.2.13 2010/01/20 18:34:49 yhahn Exp $
 
 Drupal.behaviors.contextReactionBlock = function(context) {
   $('form.context-editor:not(.context-block-processed)')
@@ -167,6 +167,21 @@ function DrupalContextBlockEditor(editor) {
         $(this).addClass('context-block-region-empty');
       }
     });
+
+    // Mark any blocks that have forms as draggable by handle only.
+    $('.context-block-region > div.context-block:has(form)').addClass('context-block-handleonly');
+  };
+
+  /**
+   * Remove script elements while dragging & dropping.
+   */
+  this.scriptFix = function(event, ui, editor, context) {
+    if ($('script', ui.item)) {
+      var placeholder = $(Drupal.settings.contextBlockEditor.scriptPlaceholder);
+      var label = $('div.handle label', ui.item).text();
+      placeholder.children('strong').html(label);
+      $('script', ui.item).parent().empty().append(placeholder);
+    }
   };
 
   /**
@@ -187,6 +202,10 @@ function DrupalContextBlockEditor(editor) {
         if (data.status) {
           var newBlock = $(data.block);
           newBlock.addClass('draggable');
+          if ($('script', newBlock)) {
+            $('script', newBlock).remove();
+          }
+          
           newBlock = ui.item.replaceWith(newBlock);
 
           $.each(data.css, function(k, v){
@@ -218,7 +237,7 @@ function DrupalContextBlockEditor(editor) {
       var blocks = [];
       $('div.context-block', $(this)).each(function() {
         var bid = $(this).attr('id').split('context-block-')[1];
-        var context = $(this).attr('class').split('edit-')[1];
+        var context = $(this).attr('class').split('edit-')[1].split(' ')[0];
         context = context ? context : 0;
         var block = {'bid': bid, 'context': context};
         blocks.push(block);
@@ -231,6 +250,42 @@ function DrupalContextBlockEditor(editor) {
   };
 
   /**
+   * Disable text selection.
+   */
+  this.disableTextSelect = function() {
+    if ($.browser.safari) {
+      $('*').css('WebkitUserSelect','none');
+    }
+    else if ($.browser.mozilla) {
+      $('*').css('MozUserSelect','none');
+    }
+    else if ($.browser.msie) {
+      $('*').bind('selectstart.contextBlockEditor', function() { return false; });
+    }
+    else {
+      $(this).bind('mousedown.contextBlockEditor', function() { return false; });
+    }
+  };
+
+  /**
+   * Enable text selection.
+   */
+  this.enableTextSelect = function() {
+    if ($.browser.safari) {
+      $('*').css('WebkitUserSelect','');
+    }
+    else if ($.browser.mozilla) {
+      $('*').css('MozUserSelect','');
+    }
+    else if ($.browser.msie) {
+      $('*').unbind('selectstart.contextBlockEditor');
+    }
+    else {
+      $(this).unbind('mousedown.contextBlockEditor');
+    }
+  };
+
+  /**
    * Start editing. Attach handlers, begin draggable/sortables.
    */
   this.editStart = function(editor, context) {
@@ -238,6 +293,8 @@ function DrupalContextBlockEditor(editor) {
     // However it's necessary that we trigger this class addition before
     // we call .sortable() as the empty regions need to be visible.
     $(document.body).addClass('context-editing');
+
+    this.disableTextSelect();
 
     $('div.context-block-region > div.edit-'+context).addClass('draggable');
 
@@ -247,8 +304,10 @@ function DrupalContextBlockEditor(editor) {
       dropOnEmpty: true,
       placeholder: 'draggable-placeholder',
       forcePlaceholderSize: true,
+      start: function(event, ui) { Drupal.contextBlockEditor.scriptFix(event, ui, editor, context); },
       stop: function(event, ui) { Drupal.contextBlockEditor.addBlock(event, ui, editor, context); },
-      items: '> div.editable'
+      items: '> div.editable',
+      handle: 'div.handle'
     };
     $('div.context-block-region').sortable(params);
 
@@ -271,6 +330,8 @@ function DrupalContextBlockEditor(editor) {
    * Finish editing. Remove handlers.
    */
   this.editFinish = function() {
+    this.enableTextSelect();
+
     $('div.context-block-region > div.draggable').removeClass('draggable');
     $('div.context-block-region').sortable('destroy');
     this.setState();

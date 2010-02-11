@@ -1,5 +1,5 @@
 <?php
-// $Id: context_condition_book.inc,v 1.1.2.1 2009/12/14 22:34:05 yhahn Exp $
+// $Id: context_condition_book.inc,v 1.1.2.3 2010/02/09 04:38:01 yhahn Exp $
 
 /**
  * Expose book properties as a context condition.
@@ -14,11 +14,9 @@ class context_condition_book extends context_condition {
   }
 
   function execute($node, $op) {
-    $this->values[] = $node;
     if (isset($node->book, $node->book['menu_name'])) {
-      $contexts = $this->get_contexts($node->book['menu_name']);
-      foreach ($contexts as $context) {
-        context_set('context', $context->name, $context);
+      foreach ($this->get_contexts($node->book['menu_name']) as $context) {
+        $this->condition_met($context, $node->book['menu_name']);
       }
     }
   }

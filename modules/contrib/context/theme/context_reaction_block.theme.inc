@@ -1,5 +1,5 @@
 <?php
-// $Id: context_reaction_block.theme.inc,v 1.1.2.5 2009/12/22 19:02:06 yhahn Exp $
+// $Id: context_reaction_block.theme.inc,v 1.1.2.6 2010/01/19 22:03:43 yhahn Exp $
 
 /**
  * Block form.
@@ -49,6 +49,14 @@ function theme_context_block_regions_form($form) {
     $output .= theme('table', array(), $rows, $attr);
   }
   return $output;
+}
+
+/**
+ * Use placeholder content for script tags that need to be replaced.
+ */
+function theme_context_block_script_placeholder($text = '') {
+  $message = t('Please reload the page to view this block.');
+  return "<div class='script-placeholder'><strong>{$text}</strong><div class='description'>{$message}</div></div>";
 }
 
 /**

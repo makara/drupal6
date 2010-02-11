@@ -1,5 +1,5 @@
 <?php
-// $Id: context_layouts_reaction_block.inc,v 1.1.2.2 2009/12/17 20:53:17 jmiccolis Exp $
+// $Id: context_layouts_reaction_block.inc,v 1.1.2.3 2010/02/08 14:32:54 yhahn Exp $
 
 class context_layouts_reaction_block extends context_reaction_block {
   /**
@@ -26,7 +26,7 @@ class context_layouts_reaction_block extends context_reaction_block {
     if (!empty($contexts) && !empty($layouts)) {
       foreach ($contexts as $context) {
         $values = $this->fetch_from_context($context);
-        if (isset($values['layout']) && $layouts[$values['layout']]) {
+        if (isset($values['layout']) && isset($layouts[$values['layout']])) {
           return $info ? $layouts[$values['layout']] : $values['layout'];
         }
       }
