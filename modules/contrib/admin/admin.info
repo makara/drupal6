@@ -4,9 +4,9 @@ description = "UI helpers for Drupal admins and managers."
 package = "Administration"
 core = 6.x
 
-; Information added by drupal.org packaging script on 2010-01-12
-version = "6.x-2.0-alpha5"
+; Information added by drupal.org packaging script on 2010-02-12
+version = "6.x-2.0-beta1"
 core = "6.x"
 project = "admin"
-datestamp = "1263332105"
+datestamp = "1266018603"
 
