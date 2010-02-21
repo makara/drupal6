@@ -1,0 +1,14 @@
+; $Id$
+
+name = "Wiredcraft 960"
+description = ""
+core = "6.x"
+engine = "phptemplate"
+
+base theme = "ninesixty"
+
+; Disable parent css.
+stylesheets[all][] = styles/framework/debug.css
+
+; Theme specific styles.
+stylesheets[all][] = styles/styles.css
