@@ -1,10 +1,15 @@
 <?php
-// $Id: drush.inc,v 1.56 2009/10/26 02:26:37 weitzman Exp $
+// $Id: drush.inc,v 1.80 2010/01/21 15:01:53 adrian Exp $
 
 /**
  * @file
  * The drush API implementation and helpers.
  */
+
+/**
+ * The number of bytes in a kilobyte. Copied from Drupal.
+ */
+define('DRUSH_DRUPAL_KILOBYTE', 1024);
 
 
 /**
@@ -19,15 +24,38 @@ function drush_dispatch($command = NULL) {
   $return = FALSE;
 
   if ($command) {
+    // Add command-specific options, if applicable
+    drush_command_default_options($command);
+
+    if (isset($command['must-replace-spaces'])) {
+      $required_name = str_replace(' ', '-', $command['command']);
+      drush_set_error(dt('Notice: "!name" must be renamed to "!requiredname" in order to work with this version of drush.  If you are the maintainer for the module that defines this command, please rename it immediately.  If you are a user of this command, you may enable spaces in commands for a while by setting "allow-spaces-in-commands" in your drush configuration file.  See example.drushrc.php.', array('!name' => $command['command'], '!requiredname' => $required_name)));
+      return FALSE;
+    }
+    // Print a warning if someone tries to use a deprecated alias.
+    if (isset($command['deprecated'])) {
+      drush_log(dt('Warning: The command name "!deprecated" is deprecated.  Please use a recommended form instead (!recommended).', array('!deprecated' => $command['deprecated-name'], '!recommended' => implode(',', array_merge(array($command['command']), $command['aliases'])))), 'warning');
+      if (isset($command['must-not-use-spaces'])) {
+        drush_set_error(dt('You may enable spaces in commands for a while by setting "allow-spaces-in-commands" in your drush configuration file.  See example.drushrc.php.', array('!name' => $command['command'], '!requiredname' => $required_name)));
+        return FALSE;
+      }
+    }
+    // Print a warning if a command callback function is misnamed
+    if (isset($command['callback-required-prefix'])) {
+      drush_log(dt('Warning: The command callback function !callback has a deprecated name.  It must begin with !requiredprefix.  Skipping hook functions.', array('!callback' => $command['callback'], '!requiredprefix' => $command['callback-required-prefix'])));
+    }
     // Call the callback function of the active command.
+    // TODO:  If we make the required prefix actually required rather than just emitting a
+    // warning, then this could become a direct call to drush_command (all commands with
+    // the required prefix will now go through drush_command + drush_invoke).
     $return = call_user_func_array($command['callback'], $command['arguments']);
   }
-  
+
   // prevent a '1' at the end of the output
   if ($return === TRUE) {
     $return = '';
   }
-  
+
   // Add a final log entry, just so a timestamp appears.
   drush_log(dt('Command dispatch complete'), 'notice');
 
@@ -36,25 +64,25 @@ function drush_dispatch($command = NULL) {
 
 /**
  * Include a file, selecting a version specific file if available.
- * 
+ *
  * For example, if you pass the path "/var/drush" and the name
  * "update" when bootstrapped on a Drupal 6 site it will first check for
  * the presence of "/var/drush/update_6.inc" in include it if exists. If this
  * file does NOT exist it will proceed and check for "/var/drush/update.inc".
  * If neither file exists, it will return FALSE.
- * 
+ *
  * @param $path
  *   The path you want to search.
  * @param $name
  *   The file base name you want to include (not including a version suffix
- *   or extension). 
+ *   or extension).
  * @param $version
  *   The version suffix you want to include (could be specific to the software
  *   or platform your are connecting to) - defaults to the current Drupal core
  *   major version.
  * @param $extension
  *   The extension - defaults to ".inc".
- *   
+ *
  * @return
  *   TRUE if the file was found and included.
  */
@@ -77,27 +105,27 @@ function drush_include($path, $name, $version = NULL, $extension = 'inc') {
 /**
  * Return a structured array of engines of a specific type from commandfiles
  * implementing hook_drush_engine_$type.
- * 
+ *
  * Engines are pluggable subsystems. Each engine of a specific type will
  * implement the same set of API functions and perform the same high-level
- * task using a different backend or approach. 
- * 
+ * task using a different backend or approach.
+ *
  * This function/hook is useful when you have a selection of several mutually
  * exclusive options to present to a user to select from.
- * 
+ *
  * Other commands are able to extend this list and provide their own engines.
  * The hook can return useful information to help users decide which engine
  * they need, such as description or list of available engine options.
- * 
+ *
  * The engine path element will automatically default to a subdirectory (within
  * the directory of the commandfile that implemented the hook) with the name of
  * the type of engine - e.g. an engine "wget" of type "handler" provided by
  * the "pm" commandfile would automatically be found if the file
  * "pm/handler/wget.inc" exists and a specific path is not provided.
- * 
+ *
  * @param $type
  *   The type of engine.
- *  
+ *
  * @return
  *   A structured array of engines.
  */
@@ -128,13 +156,13 @@ function drush_get_engines($type) {
  *
  * If the engine type has implemented hook_drush_engine_$type the path to the
  * engine specified in the array will be used.
- * 
+ *
  * If you don't need to present any user options for selecting the engine
  * (which is common if the selection is implied by the running environment)
  * and you don't need to allow other modules to define their own engines you can
  * simply pass the $path to the directory where the engines are, and the
  * appropriate one will be included.
- * 
+ *
  * Unlike drush_include this function will set errors if the requested engine
  * cannot be found.
  *
@@ -193,6 +221,13 @@ function drush_drupal_version() {
   return $version;
 }
 
+function drush_drupal_cache_clear_all() {
+  $prior = drush_get_context('DRUSH_AFFIRMATIVE');
+  drush_set_context('DRUSH_AFFIRMATIVE', TRUE);
+  drush_invoke('cache-clear', 'all');
+  drush_set_context('DRUSH_AFFIRMATIVE', $prior);
+}
+
 /**
  * Returns the Drupal major version number (5, 6, 7 ...)
  */
@@ -212,7 +247,7 @@ function drush_drupal_major_version() {
  *
  * @param
  *   A Database result object.
- */ 
+ */
 function drush_db_result($result) {
   return drush_drupal_major_version() >= 7 ? $result->fetchField() : db_result($result);
 }
@@ -222,7 +257,7 @@ function drush_db_result($result) {
  *
  * @param
  *   A Database result object.
- */ 
+ */
 function drush_db_fetch_object($result) {
   return drush_drupal_major_version() >= 7 ? $result->fetchObject() : db_fetch_object($result);
 }
@@ -230,7 +265,7 @@ function drush_db_fetch_object($result) {
 /**
  * Save a string to a temporary file. Does not depend on Drupal's API.
  *
- * @param string $data 
+ * @param string $data
  * @return string
  *   A path to the file.
  */
@@ -264,7 +299,7 @@ function drush_op($function) {
   }
 
   if (drush_get_context('DRUSH_SIMULATE')) {
-    return true;
+    return TRUE;
   }
 
   return call_user_func_array($function, $args);
@@ -305,21 +340,23 @@ function dt($string, $args = array()) {
  *   for each of the available options.
  */
 function drush_get_option_help() {
-  // TODO: Add a hook for this, to allow other modules to add their options
+  // TODO: Add a hook for this, to allow other modules to add their global options
   $options['-r <path>, --root=<path>'] = dt("Drupal root directory to use (default: current directory)");
   $options['-l <uri>, --uri=http://example.com']   = dt('URI of the drupal site to use (only needed in multisite environments)');
   $options['-v, --verbose']            = dt('Display extra information about the command.');
   $options['-d, --debug']              = dt('Display even more information, including internal messages.');
   $options['-q, --quiet']              = dt('Hide all output');
   $options['-y, --yes']                = dt("Assume 'yes' as answer to all prompts");
+  $options['-n, --no']                = dt("Assume 'no' as answer to all prompts");
   $options['-s, --simulate']           = dt("Simulate all relevant actions (don't actually change the system)");
   $options['-i, --include']            = dt("A list of paths to search for drush commands");
   $options['-c, --config']             = dt("Specify a config file to use. See example.drushrc.php");
   $options['-u, --user']               = dt("Specify a user to login with. May be a name or a number.");
   $options['-b, --backend']            = dt("Hide all output and return structured data (internal use only).");
   $options['-p, --pipe']               = dt("Emit a compact representation of the command for scripting.");
-  $options['-n, --nocolor']            = dt("Suppress color highlighting on log messages.");
-  $options['-h, --help']               = dt("The absolute path to your PHP intepreter.");
+  $options['--nocolor']                = dt("Suppress color highlighting on log messages.");
+  $options['-h, --help']               = dt("This help system.");
+  $options['--php']                    = dt("The absolute path to your PHP intepreter, if not 'php' in the path.");
   return $options;
 }
 
@@ -339,7 +376,7 @@ function drush_show_help($commands) {
       $commands = drush_get_commands();
       if (array_key_exists($commandstring, $commands)) {
         $command = $commands[$commandstring];
-        
+
         // Merge in engine specific help.
         foreach ($command['engines'] as $type => $description) {
           $all_engines = drush_get_engines($type);
@@ -347,19 +384,19 @@ function drush_show_help($commands) {
             $command = array_merge_recursive($command, $engine);
           }
         }
-        
+
         $help = drush_command_invoke_all('drush_help', 'drush:'. $command['command']);
         if (!empty($help)) {
           drush_print(wordwrap(implode("\n", $help), drush_get_context('DRUSH_COLUMNS', 80)));
           drush_print();
-          
+
           // TODO: Let commands define additional sections.
           $sections = array(
             'examples' => 'Examples',
             'arguments' => 'Arguments',
             'options' => 'Options',
           );
-          
+
           foreach ($sections as $key => $value) {
             if (!empty($command[$key])) {
               drush_print(dt($value) . ':');
@@ -377,7 +414,7 @@ function drush_show_help($commands) {
           if ($command['aliases']) {
             drush_print(dt("Aliases: ") . implode(', ', $command['aliases']));
           }
-          
+
           return TRUE;
         }
         else {
@@ -407,11 +444,8 @@ function drush_show_help($commands) {
  *   0 if success.
  */
 function drush_shell_exec($cmd) {
-  if (drush_get_context('DRUSH_SIMULATE')) {
-    return true;
-  }
   $args = func_get_args();
- 
+
   //do not change the command itself, just the parameters.
   for ($x = 1; $x < sizeof($args); $x++) {
     $args[$x] = escapeshellarg($args[$x]);
@@ -422,18 +456,22 @@ function drush_shell_exec($cmd) {
     drush_log('Executing: ' . $command);
   }
 
-  exec($command . ' 2>&1', $output, $result);
-  
-  _drush_shell_exec_output_set($output);
+  if (!drush_get_context('DRUSH_SIMULATE')) {
+    exec($command . ' 2>&1', $output, $result);
+    _drush_shell_exec_output_set($output);
 
-  if (drush_get_context('DRUSH_VERBOSE')) {
-    foreach ($output as $line) {
-      drush_print($line, 2);
+    if (drush_get_context('DRUSH_DEBUG')) {
+      foreach ($output as $line) {
+        drush_print($line, 2);
+      }
     }
-  }
 
-  // Exit code 0 means success.
-  return ($result == 0);
+    // Exit code 0 means success.
+    return ($result == 0);
+  }
+  else {
+    return 0;
+  }
 }
 
 /**
@@ -446,7 +484,7 @@ function drush_shell_exec($cmd) {
  */
 function _drush_shell_exec_output_set($output = FALSE) {
   static $stored_output;
-  if (!$output) return $stored_output;
+  if ($output === FALSE) return $stored_output;
   $stored_output = $output;
 }
 
@@ -458,7 +496,7 @@ function drush_shell_exec_output() {
 }
 
 /**
- * Exits with a message. In general, you should use drush_set_error() instead of 
+ * Exits with a message. In general, you should use drush_set_error() instead of
  * this function. That lets drush proceed with other tasks.
  * TODO: Exit with a correct status code.
  */
@@ -467,12 +505,12 @@ function drush_die($msg = NULL, $status = NULL) {
 }
 
 /**
- * Prints a message with optional indentation. In general, 
- * drush_log($message, 'ok') is often a better choice than this function. 
- * That gets your confirmation message (for example) into the logs for this 
- * drush request. Consider that drush requests may be executed remotely and 
+ * Prints a message with optional indentation. In general,
+ * drush_log($message, 'ok') is often a better choice than this function.
+ * That gets your confirmation message (for example) into the logs for this
+ * drush request. Consider that drush requests may be executed remotely and
  * non interactively.
- * 
+ *
  * @param $message
  *   The message to print.
  * @param $indent
@@ -510,13 +548,19 @@ function drush_print_r($array) {
 function drush_confirm($msg, $indent = 0) {
   print str_repeat(' ', $indent) . (string)$msg . " (y/n): ";
 
+  // Automatically accept confirmations if the --yes argument was supplied.
   if (drush_get_context('DRUSH_AFFIRMATIVE')) {
     print "y\n";
     return TRUE;
   }
+  // Automatically cancel confirmations if the --no argument was supplied.
+  elseif (drush_get_context('DRUSH_NEGATIVE')) {
+    print "n\n";
+    return FALSE;
+  }
   // See http://drupal.org/node/499758 before changing this.
   $stdin = fopen("php://stdin","r");
-  
+
   while ($line = fgets($stdin)) {
   $line = trim($line);
     if ($line == 'y') {
@@ -530,8 +574,53 @@ function drush_confirm($msg, $indent = 0) {
 }
 
 /**
+ * Ask the user to select an item from a list.
+ * From a provided associative array, drush_choice will
+ * display all of the questions, numbered from 1 to N,
+ * and return the item the user selected.  "0" is always
+ * cancel; entering a blank line is also interpreted
+ * as cancelling.
+ *
+ * @param $options
+ *   A list of questions to display to the user.  The
+ *   KEYS of the array are the result codes to return to the
+ *   caller; the VALUES are the messages to display on
+ *   each line.
+ * @param $prompt
+ *   The message to display to the user prompting for input.
+ * @param $label
+ *   Controls the display of each line.  Defaults to
+ *   '!value', which displays the value of each item
+ *   in the $options array to the user.  Use '!key' to
+ *   display the key instead.  In some instances, it may
+ *   be useful to display both the key and the value; for
+ *   example, if the key is a user id and the value is the
+ *   user name, use '!value (uid=!key)'.
+ */
+function drush_choice($options, $prompt = 'Enter a number.', $label = '!value') {
+  print dt($prompt) . "\n";
+
+  drush_print('[0] : Cancel');
+  $selection_number = 0;
+  foreach ($options as $key => $option) {
+    $selection_number++;
+    $message = dt($label, array('!number' => $selection_number, '!key' => $key, '!value' => $option));
+    drush_print(dt("[!number] : !message", array('!number' => $selection_number, '!message' => $message)));
+    $selection_list[$selection_number] = $key;
+  }
+
+  while ($line = trim(fgets(STDIN))) {
+    if (array_key_exists($line, $selection_list)) {
+      return $selection_list[$line];
+    }
+  }
+  drush_print(dt('Cancelled'));
+  return FALSE;
+}
+
+/**
  * Print a formatted table.
- * 
+ *
  * @param $rows
  *   The rows to print.
  * @param $header
@@ -566,8 +655,28 @@ function drush_print_table($rows, $header = FALSE, $widths = array()) {
 }
 
 /**
+ * Convert an associative array of key : value pairs into
+ * a table suitable for processing by drush_print_table.
+ *
+ * @param $keyvalue_table
+ *    An associative array of key : value pairs.
+ * @return
+ *    An array of arrays, where the keys from the input
+ *    array are stored in the first column, and the values
+ *    are stored in the third.  A second colum is created
+ *    specifically to hold the ':' separator.
+ */
+function drush_key_value_to_array_table($keyvalue_table) {
+  $table = array();
+  foreach ($keyvalue_table as $key => $value) {
+    $table[] = array($key, ' :', $value);
+  }
+  return $table;
+}
+
+/**
  * Determine the best fit for column widths.
- * 
+ *
  * @param $rows
  *   The rows to use for calculations.
  * @param $widths
@@ -576,7 +685,7 @@ function drush_print_table($rows, $header = FALSE, $widths = array()) {
  */
 function drush_table_column_autowidth($rows, $widths) {
   $auto_widths = $widths;
-  
+
   // First we determine the distribution of row lengths in each column.
   // This is an array of descending character length keys (i.e. starting at
   // the rightmost character column), with the value indicating the number
@@ -608,7 +717,7 @@ function drush_table_column_autowidth($rows, $widths) {
   // above "ideal" columns take up.
   $available_width = drush_get_context('DRUSH_COLUMNS', 80) - (count($auto_widths) * 2);
   $auto_width_current = array_sum($auto_widths);
-  
+
   // If we need to reduce a column so that we can fit the space we use this
   // loop to figure out which column will cause the "least wrapping",
   // (relative to the other columns) and reduce the width of that column.
@@ -648,6 +757,229 @@ function drush_table_column_autowidth($rows, $widths) {
 }
 
 /**
+ * @defgroup dispatching Command dispatching functions.
+ * @{
+ *
+ * These functions manage parameter and option manipulation
+ * for calls to drush backend invoke.
+ */
+
+/**
+ * Process commands that are executed on a remote drush instance.
+ *
+ * @return
+ *   TRUE if the command was handled remotely.
+ */
+function drush_remote_command() {
+  // The command will be executed remotely if the --remote-host flag
+  // is set; note that if a site alias is provided on the command line,
+  // and the site alias references a remote server, then the --remote-host
+  // option will be set when the site alias is processed.
+  // @see _drush_process_site_alias
+  $remote_host = drush_get_option('remote-host');
+  if (isset($remote_host)) {
+
+    $args = drush_get_arguments();
+    $command = array_shift($args);
+    $remote_user = drush_get_option('remote-user');
+
+    drush_do_command_redispatch($command, $args, $remote_host, $remote_user);
+    return TRUE;
+  }
+  // If the --site-list flag is set, then we will execute the specified
+  // command once for every site listed in the site list.
+  $site_list = drush_get_option('site-list');
+  if (isset($site_list)) {
+    if (!is_array($site_list)) {
+      $site_list = explode(',', $site_list);
+    }
+    $args = drush_get_arguments();
+    
+    if (!drush_get_context('DRUSH_SIMULATE')) {
+      drush_print(dt('You are about to use the experimental MULTIPLE-TARGET drush command feature.'));
+      drush_print(dt('This code is new; please be careful (make backups), and use at your own risk!'));
+      
+      drush_print(dt("You are about to execute '!command' on all of the following targets:", array('!command' => implode(" ", $args))));
+      foreach ($site_list as $one_destination) {
+        drush_print(dt('  !target', array('!target' => $one_destination)));
+      }
+      
+      // Temporary: ask what the user wants to do
+      // Once this code works, we'll replace this with a
+      // simple 'drush_confirm', so -y will work.
+      // You must manually confirm every time until this
+      // code is tested.  Help out at issue #628996
+      // if this is annoying to you.
+      
+      $options['s'] = 'Run simulation first (add -s flag)  WARNING: ignored by some commands!';
+      $options['g'] = 'Go!';
+      $choice = drush_choice($options, 'Enter a number to choose which action to take.');
+      
+      if ($choice === FALSE) {
+         drush_die('Aborting.');
+      }
+      if ($choice != 'g') {
+        drush_set_option('s', TRUE, 'options');
+        drush_set_context('DRUSH_SIMULATE', TRUE);
+      }
+    }
+    $command = array_shift($args);
+
+    foreach ($site_list as $site_spec) {
+      $site_record = _drush_sitealias_get_record($site_spec);
+      if (!empty($site_record)) {
+        // Pass only the root and uri parameters from the site alias;
+        // put them in the 'options' context where they are sure to
+        // be picked up by the command redispatch helper.
+        drush_set_option('root', $site_record['root'], 'options');
+        drush_set_option('uri', $site_record['uri'], 'options');
+        drush_unset_option('r');
+        drush_unset_option('l');
+        drush_do_command_redispatch($command, $args, $site_record['remote-host'], $site_record['remote-user']);
+      }
+    }
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
+ * Used by functions that operate on lists of sites, moving
+ * information from the source to the destination.  Currenlty
+ * this includes 'drush rsync' and 'drush sql sync'.
+ */
+function drush_do_multiple_command($command, $source_record, $destination_record, $allow_single_source = FALSE) {
+  $is_multiple_command = FALSE;
+  
+  if ((($allow_single_source == TRUE) || array_key_exists('site-list', $source_record)) && array_key_exists('site-list', $destination_record)) {
+    $is_multiple_command = TRUE;
+    $source_path = array_key_exists('path-component', $source_record) ? $source_record['path-component'] : '';
+    $destination_path = array_key_exists('path-component', $destination_record) ? $destination_record['path-component'] : '';
+    
+    $target_list = drush_sitealias_resolve_sitelist($destination_record);
+    if (array_key_exists('site-list', $source_record)) {
+      $source_list = drush_sitealias_resolve_sitelist($source_record);
+
+      if (drush_sitealias_check_lists_alignment($source_list, $target_list) === FALSE) {
+        if (array_key_exists('unordered-list', $source_record) || array_key_exists('unordered-list', $destination_record)) {
+          drush_sitelist_align_lists($source_list, $target_list, $aligned_source, $aligned_target);
+          $source_list = $aligned_source;
+          $target_list = $aligned_target;
+        }
+      }
+    }
+    else {
+      $source_list = array_fill(0, count($target_list), $source_record);
+    }
+    
+    drush_print($source_path);
+    drush_print($destination_path);
+    
+    if (!drush_get_context('DRUSH_SIMULATE')) {
+      drush_print(dt('You are about to use the experimental MULTIPLE-SYNCHRONIZED-TARGET drush !command feature.', array('!command' => $command)));
+      drush_print(dt('This code is new; please be careful (make backups), and use at your own risk!'));
+
+      drush_print(dt('You are about to rsync between all of the following targets:'));
+      $i = 0;
+      foreach ($source_list as $one_source) {
+        $one_target = $target_list[$i];
+        ++$i;
+        drush_print(dt('  !source will overwrite !target', array('!source' => drush_sitealias_alias_record_to_spec($one_source) . $source_path, '!target' => drush_sitealias_alias_record_to_spec($one_target) . $destination_path)));
+      }
+
+      // Temporary: ask what the user wants to do
+      // Once this code works, we'll replace this with a
+      // simple 'drush_confirm', so -y will work.
+      // You must manually confirm every time until this
+      // code is tested.  Help out at issue #628996
+      // if this is annoying to you.
+
+      $options['s'] = 'Run simulation first (add -s flag)';
+      $options['g'] = 'Go!';
+      $choice = drush_choice($options, 'Enter a number to choose which action to take.');
+
+      if ($choice === FALSE) {
+         drush_die('Aborting.');
+      }
+      if ($choice != 'g') {
+        drush_set_option('s', TRUE, 'options');
+        drush_set_context('DRUSH_SIMULATE', TRUE);
+      }
+    }
+    
+    $data = drush_redispatch_get_options();
+    $i = 0;
+    foreach ($source_list as $one_source) {
+      $one_target = $target_list[$i];
+      ++$i;
+      
+      $source_spec = drush_sitealias_alias_record_to_spec($one_source);
+      $target_spec = drush_sitealias_alias_record_to_spec($one_target);
+      
+      drush_log(dt('Begin do_multiple !command via backend invoke', array('!command' => $command)));
+      $values = drush_backend_invoke_args($command, array($source_spec . $source_path, $target_spec . $destination_path), $data, 'GET', TRUE);
+      drush_log(dt('Backend invoke is complete'));
+    }
+  }
+  
+  return $is_multiple_command;
+}
+
+/**
+ * Redispatch the specified command using the same
+ * options that were passed to this invocation of drush.
+ */
+function drush_do_command_redispatch($command, $args, $remote_host = NULL, $remote_user = NULL) {
+  $data = drush_redispatch_get_options();
+
+  // If the path to drush was supplied, then pass it to backend invoke.
+  // (Perhaps this should be added to the default handling of backend invoke.)
+  $drush_path = drush_get_option('drush-script');
+  if (!isset($drush_path)) {
+    $drush_folder = drush_get_option('drush');
+    if (isset($drush)) {
+      $drush_path = $drush_folder . '/drush';
+    }
+  }
+  // Call through to backend invoke.
+  drush_log(dt('Begin redispatch via backend invoke'));
+  $values = drush_backend_invoke_args($command, $args, $data, 'GET', TRUE, $drush_path, $remote_host, $remote_user);
+  drush_log(dt('Backend invoke is complete'));
+}
+
+/**
+ * Get the options for this command.
+ *
+ * This function returns an array that contains all of the options
+ * that are appropriate for forwarding along to backend invoke.
+ * Pass the result from this function to backend invoke in the $data
+ * parameter when doing a redispatch.
+ */
+function drush_redispatch_get_options() {
+  // Start off by taking everything from the command line ('options' context)
+  $options = drush_get_context('options');
+  // If we can parse the current command, then examine all contexts
+  // in order for any option that is directly related to the current command
+  $command = drush_parse_command();
+  if (is_array($command)) {
+    foreach ($command['options'] as $key => $value) {
+      // Strip leading --
+      $key = ltrim($key, '-');
+      $value = drush_get_option($key);
+      if (isset($value)) {
+        $options[$key] = $value;
+      }
+    }
+  }
+  return $options;
+}
+
+
+/**
+ * @} End of "defgroup dispatching".
+ */
+
+/**
  * @defgroup logging Logging information to be provided as output.
  * @{
  *
@@ -679,9 +1011,10 @@ function drush_log($message, $type = 'notice', $error = null) {
   $log =& drush_get_context('DRUSH_LOG', array());
   $callback = drush_get_context('DRUSH_LOG_CALLBACK', '_drush_print_log');
   $entry = array(
-     'type' => $type, 
-     'message' => $message, 
+     'type' => $type,
+     'message' => $message,
      'timestamp' => microtime(TRUE),
+     'memory' => memory_get_usage(),
    );
   $entry['error'] = $error;
   $log[] = $entry;
@@ -712,7 +1045,7 @@ function dlm($object) {
 
 /*
  * Display the pipe output for the current request.
- */ 
+ */
 function drush_pipe_output() {
   $pipe = drush_get_context('DRUSH_PIPE_BUFFER');
   drush_print_r($pipe);
@@ -746,11 +1079,11 @@ function _drush_print_log($entry) {
 
   $return = TRUE;
   switch ($entry['type']) {
-    case 'warning' : 
+    case 'warning' :
       $type_msg = sprintf($yellow, $entry['type']);
       break;
-    case 'failed' : 
-    case 'error' : 
+    case 'failed' :
+    case 'error' :
       $type_msg = sprintf($red, $entry['type']);
       $return = FALSE;
       break;
@@ -759,15 +1092,16 @@ function _drush_print_log($entry) {
     case 'success' :
       $type_msg = sprintf($green, $entry['type']);
       break;
-    case 'notice' : 
-    case 'message' : 
+    case 'notice' :
+    case 'message' :
+    case 'info' :
       if (!$verbose) {
         // print nothing. exit cleanly.
         return TRUE;
       }
       $type_msg = sprintf("[%s]", $entry['type']);
       break;
-    default : 
+    default :
       if (!$debug) {
         // print nothing. exit cleanly.
         return TRUE;
@@ -785,15 +1119,15 @@ function _drush_print_log($entry) {
   $columns = drush_get_context('DRUSH_COLUMNS', 80);
 
   $width[1] = 11;
-  // Append timer value.
+  // Append timer and memory values.
   if ($debug) {
-    $timer = sprintf('[%s sec]', round($entry['timestamp']-DRUSH_REQUEST_TIME, 3));
+    $timer = sprintf('[%s sec, %s]', round($entry['timestamp']-DRUSH_REQUEST_TIME, 2), drush_format_size($entry['memory']));
     $entry['message'] = $entry['message'] . ' ' . $timer;
   }
 
   $width[0] = ($columns - 11);
 
-  $format = sprintf("%%-%ds%%%ds", $width[0], $width[1]); 
+  $format = sprintf("%%-%ds%%%ds", $width[0], $width[1]);
 
   // Place the status message right aligned with the top line of the error message.
   $message = wordwrap($entry['message'], $width[0]);
@@ -804,13 +1138,13 @@ function _drush_print_log($entry) {
   return $return;
 }
 
-// Log all timers for the request except standard page timer.
+// Log all timers for the request.
 // Useful for migrate commands. Lets see if others find it useful.
 // Called at end of request. @see drush.php
 function drush_log_timers() {
   global $timers;
   foreach ((array)$timers as $name => $timerec) {
-    drush_log("Timer '$name' is  "  . sprintf('%s sec.', round(timer_read($name)/1000, 3)), 'timer');
+    drush_log("Timer '$name' is  "  . sprintf('%s sec.', round(timer_read($name)/1000, 2)), 'timer');
   }
 }
 /**
@@ -820,15 +1154,18 @@ function _drush_log_drupal_messages() {
   if (function_exists('drupal_get_messages')) {
 
     $messages = drupal_get_messages();
-    
+
     if (array_key_exists('error', $messages)) {
       //Drupal message errors.
       foreach ((array) $messages['error'] as $error) {
         $error = strip_tags($error);
-        if (preg_match('/^warning: Cannot modify header information - headers already sent by /i', $error)) {
-          //This is a special case for an unavoidable warning
-          //that is generated by generating output before Drupal is bootstrapped.
-          //Simply ignore it.
+        $header = preg_match('/^warning: Cannot modify header information - headers already sent by /i', $error);
+        $session = preg_match('/^warning: session_start\(\): Cannot send session /i', $error);
+        if ($header || $session) {
+          //These are special cases for an unavoidable warnings
+          //that are generated by generating output before Drupal is bootstrapped.
+          //or sending a session cookie (seems to affect d7 only?)
+          //Simply ignore them.
           continue;
         }
         elseif (preg_match('/^warning:/i', $error)) {
@@ -846,7 +1183,90 @@ function _drush_log_drupal_messages() {
         }
       }
     }
+    unset($messages['error']);
+
+    // Log non-error messages.
+    foreach ($messages as $type => $items) {
+      foreach ($items as $item) {
+        drush_log(strip_tags($item), $type);
+      }
+    }
   }
+}
+
+// Copy of format_size() in Drupal.
+function drush_format_size($size, $langcode = NULL) {
+  if ($size < DRUSH_DRUPAL_KILOBYTE) {
+    // format_plural() not always available.
+    return dt('@count bytes', array('@count' => $size));
+  }
+  else {
+    $size = $size / DRUSH_DRUPAL_KILOBYTE; // Convert bytes to kilobytes.
+    $units = array(
+      dt('@size KB', array(), array('langcode' => $langcode)),
+      dt('@size MB', array(), array('langcode' => $langcode)),
+      dt('@size GB', array(), array('langcode' => $langcode)),
+      dt('@size TB', array(), array('langcode' => $langcode)),
+      dt('@size PB', array(), array('langcode' => $langcode)),
+      dt('@size EB', array(), array('langcode' => $langcode)),
+      dt('@size ZB', array(), array('langcode' => $langcode)),
+      dt('@size YB', array(), array('langcode' => $langcode)),
+    );
+    foreach ($units as $unit) {
+      if (round($size, 2) >= DRUSH_DRUPAL_KILOBYTE) {
+        $size = $size / DRUSH_DRUPAL_KILOBYTE;
+      }
+      else {
+        break;
+      }
+    }
+    return str_replace('@size', round($size, 2), $unit);
+  }
+}
+
+/**
+ * Log Drupal watchdog() calls.
+ *
+ * A sneaky implementation of hook_watchdog().
+ */
+function system_watchdog($log_entry) {
+  $levels = drush_watchdog_severity_levels();
+  drush_log('WD '. $log_entry['type'] . ': ' . drush_watchdog_format_message((object)$log_entry), $levels[$log_entry['severity']]);
+}
+
+/**
+ * Copy of watchdog_severity_levels() without t() and tuned for _drush_print_log.
+ *
+ * Severity levels, as defined in RFC 3164: http://www.ietf.org/rfc/rfc3164.txt.
+ *
+ * @return
+ *   Array of the possible severity levels for log messages.
+ *
+ * @see watchdog()
+ */
+function drush_watchdog_severity_levels() {
+  return array(
+    WATCHDOG_EMERG    => 'error', // emergency
+    WATCHDOG_ALERT    => 'error', // alert
+    WATCHDOG_CRITICAL => 'error', // critical
+    WATCHDOG_ERROR    => 'error',
+    WATCHDOG_WARNING  => 'warning',
+    WATCHDOG_NOTICE   => 'notice',
+    WATCHDOG_INFO     => 'info',
+    WATCHDOG_DEBUG    => 'debug',
+  );
+}
+
+function drush_watchdog_format_message($watchdog) {
+  if (drush_drupal_major_version() == 5) {
+    $message = $watchdog->message;
+  }
+  else {
+    // variables is an array during logging but is a string when retrieving from DB.
+    $variables = is_string($watchdog->variables) ? unserialize($watchdog->variables) : $watchdog->variables;
+    $message = is_array($variables) ? strtr($watchdog->message, $variables) : $watchdog->message;
+  }
+  return decode_entities($message);
 }
 
 /**
@@ -912,7 +1332,7 @@ define('DRUSH_APPLICATION_ERROR', 255);
  *   A text string identifying the type of error.
  *
  * @param message
- *   Optional. Error message to be logged. If no message is specified, hook_drush_help will be consulted, 
+ *   Optional. Error message to be logged. If no message is specified, hook_drush_help will be consulted,
  *   using a key of 'error:MY_ERROR_STRING'.
  *
  * @return
@@ -967,11 +1387,11 @@ function drush_get_error_log() {
  * @param error
  *   A text string identifying the error that has occurred.
  * @return
- *   TRUE if the specified error has been set, FALSE if not 
+ *   TRUE if the specified error has been set, FALSE if not
  */
 function drush_cmp_error($error) {
   $error_log = drush_get_error_log();
-  
+
   if (is_numeric($error)) {
     $error = 'DRUSH_FRAMEWORK_ERROR';
   }
@@ -1003,4 +1423,22 @@ function drush_errors_on() {
 /**
  * @} End of "defgroup errorhandling".
  */
+
+ /**
+ * Get the PHP memory_limit value in bytes.
+ */
+function drush_memory_limit() {
+  $value = trim(ini_get('memory_limit'));
+  $last = strtolower($value[strlen($value)-1]);
+  switch ($last) {
+    case 'g':
+      $value *= 1024;
+    case 'm':
+      $value *= 1024;
+    case 'k':
+      $value *= 1024;
+  }
+
+  return $value;
+}
 

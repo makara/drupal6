@@ -1,17 +1,21 @@
-// $Id: README.txt,v 1.29 2009/10/26 12:47:20 weitzman Exp $
+// $Id: README.txt,v 1.33 2010/01/26 03:23:56 weitzman Exp $
 
 DESCRIPTION
 -----------
-drush is a command line shell and Unix scripting interface for Drupal.
+Drush is a command line shell and Unix scripting interface for Drupal.
+If you are unfamiliar with shell scripting, reviewing the documentation
+for your shell (e.g. man bash) or reading an online tutorial (e.g. search
+for "bash tutorial") will help you get the most out of Drush.
 
-Drush core ships with lots of useful commands for interacting with code 
-like modules/themes/profiles. Similarly, it runs update.php, executes sql 
+Drush core ships with lots of useful commands for interacting with code
+like modules/themes/profiles/translations. Similarly, it runs update.php, executes sql
 queries and DB migrations, and misc utilities like run cron or clear cache.
 
 INSTALLATION
 ------------
 For Linux/Unix/Mac:
   1. Untar the tarball into a folder outside of your web site (/path/to/drush)
+     (e.g. if drush is in your home directory, ~/drush can be used for /path/to/drush)
   2. Make the 'drush' command executable:
        $ chmod u+x /path/to/drush/drush
   3. (Optional, but recommended:) To ease the use of drush,
@@ -20,7 +24,12 @@ For Linux/Unix/Mac:
      OR
      - create an alias to drush:
        $ alias drush='/path/to/drush/drush'
-       (this goes into .profile or .bash_aliases in your home folder)
+       For example, if drush is in your home directory:
+       $ alias drush='~/drush/drush'
+       This goes into .profile, .bash_aliases or .bashrc in your home folder.
+       NOTE:  You must log out and then log back in again or re-load your bash
+       configuration file to apply your changes to your current session:
+       $ source .bashrc
 
      NOTE FOR ADVANCED USERS
      - If you want to run drush with a specific version of php, rather than the
@@ -68,7 +77,7 @@ Related Options:
                                 (default: current directory or anywhere in a Drupal directory tree)
   -l <uri> , --uri=<uri>        URI of the drupal site to use
                                 (only needed in multisite environments)
-  -v, --verbose                 Display all available output
+  -v, --verbose                 Display verbose output.
 
 Some other options:
   -i <path>, --include=<path>   Path to folder(s) containing additional drush command files.
@@ -82,7 +91,7 @@ COMMANDS
 --------
 Drush ships with a number of commands, but you can easily write
 your own. In fact, writing a drush command is no harder that writing simple
-Drupal extensions, since drush command files closely follows the structure of
+Drupal extensions, since drush command files closely follow the structure of
 ordinary Drupal modules.
 
 See example.drush.inc for details on the internals of a drush command
@@ -103,8 +112,8 @@ that drush can find it.
 REQUIREMENTS
 ------------
 * To use drush from the command line, you'll need a CLI-mode capable PHP
-  binary. The minimum required PHP version is 5.2.
-* drush should also run on Windows, however, drush modules makes use of
+  binary. The minimum PHP version is 5.2.
+* drush also runs on Windows; however, drush modules makes use of
   unix command line tools, so to use it effectively, you have to install
   some of them, e.g. from GnuWin32 (http://gnuwin32.sourceforge.net/).
 
@@ -112,15 +121,15 @@ FAQ
 ---
   Q: What does "drush" stand for?
   A: The Drupal Shell.
-  
+
   Q: How do I pronounce drush?
-  A: Some people pronounce the dru with a long u like drupal. Fidelity points goes to  
-  them, but they are in the minority. Most pronouce drush so that it rhymes with 
+  A: Some people pronounce the dru with a long u like drupal. Fidelity points go to
+  them, but they are in the minority. Most pronounce drush so that it rhymes with
   hush, rush, flush, etc. This is the preferred pronunciation.
 
 CREDITS
 -------
 Originally developed by Arto Bendiken <http://bendiken.net/> for Drupal 4.7.
 Redesigned by Franz Heinzmann (frando) <http://unbiskant.org/> in May 2007 for Drupal 5.
-Maintained by Moshe Weitzman <http://drupal.org/moshe> with much help from 
-Grugnog2, Adrian Rossouw, and Vingborg.
+Maintained by Moshe Weitzman <http://drupal.org/moshe> with much help from
+Grugnog2, Adrian Rossouw, greg.1.anderson.

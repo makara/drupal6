@@ -1,5 +1,5 @@
 <?php
-// $Id: environment_7.inc,v 1.7 2010/01/25 16:13:01 weitzman Exp $
+// $Id: environment_5.inc,v 1.4 2010/01/25 16:13:01 weitzman Exp $
 /**
  * @file
  *   Specific functions for a drupal 5 environment.
@@ -12,10 +12,21 @@
  * Get complete information for all available modules.
  *
  * @return
- *   An array containing module info for all installed modules.
+ *   An array containing module info for all available modules.
  */
 function drush_get_modules() {
-  return system_rebuild_module_data();
+  $modules = module_rebuild_cache();
+  // In Drupal 5, system_modules() returns NULL for the dependency list of the module if there are no dependencies.
+  // We will override this to be an empty array instead to be compatible to Drupal 6 and 7
+  foreach ($modules as $module) {
+    if (empty($module->info['dependencies'])) {
+      $module->info['dependencies'] = array();
+    }
+    if (empty($module->info['dependents'])) {
+      $module->info['dependents'] = array();
+    }
+  }
+  return $modules;
 }
 
 /**
@@ -31,8 +42,8 @@ function drush_get_modules() {
 function drush_check_module_dependencies($modules, $module_info) {
   $status = array();
   foreach ($modules as $key => $module) {
-    $dependencies = $module_info[$module]->requires;
-    $unmet_dependencies = array_diff(array_keys($dependencies), array_keys($module_info));
+    $dependencies = $module_info[$module]->info['dependencies'];
+    $unmet_dependencies = array_diff($dependencies, array_keys($module_info));
     if (!empty($unmet_dependencies)) {
       $status[$key]['error'] = array(
           'code' => 'DRUSH_PM_ENABLE_DEPENDENCY_NOT_FOUND',
@@ -40,19 +51,8 @@ function drush_check_module_dependencies($modules, $module_info) {
       );
     }
     else {
-      // check for version incompatibility
-      foreach ($dependencies as $dependency_name => $v) {
-        $current_version = $module_info[$dependency_name]->info['version'];
-        $incompatibility = drupal_check_incompatibility($v, $current_version);
-        if (!is_null($incompatibility)) {
-          $status[$key]['error'] = array(
-            'code' => 'DRUSH_PM_ENABLE_DEPENDENCY_VERSION_MISMATCH',
-            'message' => dt('Module !module cannot be enabled because it depends on !dependency !required_version but !current_version is available', array('!module' => $module, '!dependency' => $dependency_name, '!required_version' => $incompatibility, '!current_version' => $current_version))
-          );
-        }
-      }
+      $status[$key]['dependencies'] = $dependencies;
     }
-    $status[$key]['dependencies'] = array_keys($dependencies);
   }
 
   return $status;
@@ -71,7 +71,7 @@ function drush_check_module_dependencies($modules, $module_info) {
 function drush_module_dependents($modules, $module_info) {
   $dependents = array();
   foreach ($modules as $module) {
-    $dependents = array_merge($dependents, array_keys($module_info[$module]->required_by));
+    $dependents = array_merge($dependents, $module_info[$module]->info['dependents']);
   }
 
   return array_unique($dependents);
@@ -84,7 +84,21 @@ function drush_module_dependents($modules, $module_info) {
  *   Array of module names
  */
 function drush_module_enable($modules) {
-  module_enable($modules, FALSE);
+  // In Drupal 5, drupal_install_modules() only installs new modules,
+  // and does not enable previously installed and disabled modules.
+  $install_modules = array();
+  $enable_modules = array();
+
+  foreach ($modules as $module) {
+    if (drupal_get_installed_schema_version($module) == SCHEMA_UNINSTALLED) {
+      $install_modules[] = $module;
+    }
+    else {
+      $enable_modules[] = $module;
+    }
+  }
+  drupal_install_modules($install_modules);
+  module_enable($enable_modules);
 }
 
 /**
@@ -94,7 +108,7 @@ function drush_module_enable($modules) {
  *   Array of module names
  */
 function drush_module_disable($modules) {
-  module_disable($modules, FALSE);
+  module_disable($modules);
 }
 
 /**
@@ -105,7 +119,9 @@ function drush_module_disable($modules) {
  */
 function drush_module_uninstall($modules) {
   require_once drush_get_context('DRUSH_DRUPAL_ROOT') . '/includes/install.inc';
-  drupal_uninstall_modules($modules);
+  foreach ($modules as $module) {
+    drupal_uninstall_module($module);
+  }
 }
 
 /**
@@ -116,9 +132,9 @@ function drush_module_uninstall($modules) {
  * the form submit (such as admin_role) are completed.
  */
 function drush_system_modules_form_submit($active_modules) {
-  module_load_include('inc', 'system', 'system.admin'); 
+  require_once('./'. drupal_get_path('module', 'system') .'/system.module');
   $form_state = array('values' => array('status' => $active_modules));
-  drupal_form_submit('system_modules', $form_state);
+  drupal_execute('system_modules', $form_state);
 }
 
 /**
@@ -128,7 +144,7 @@ function drush_system_modules_form_submit($active_modules) {
  *   An array containing theme info for all available themes.
  */
 function drush_get_themes() {
-  return list_themes(TRUE);
+  return system_theme_data();
 }
 
 /**
@@ -138,7 +154,8 @@ function drush_get_themes() {
  *  Array of theme names.
  */
 function drush_theme_enable($themes) {
-  theme_enable($themes);
+  $placeholder = implode(',', array_fill(0, count($themes), "'%s'"));
+  db_query("UPDATE {system} SET status = 1 WHERE type = 'theme' AND name IN (".$placeholder.")", $themes);
 }
 
 /**
@@ -148,6 +165,7 @@ function drush_theme_enable($themes) {
  *  Array of theme names.
  */
 function drush_theme_disable($themes) {
-  theme_disable($themes);
+  $placeholder = implode(',', array_fill(0, count($themes), "'%s'"));
+  db_query("UPDATE {system} SET status = 0 WHERE type = 'theme' AND name IN (".$placeholder.")", $themes);
 }
 

@@ -1,5 +1,5 @@
 <?php
-// $Id: environment_7.inc,v 1.7 2010/01/25 16:13:01 weitzman Exp $
+// $Id: environment_6.inc,v 1.4 2010/01/25 16:13:01 weitzman Exp $
 /**
  * @file
  *   Specific functions for a drupal 5 environment.
@@ -15,7 +15,7 @@
  *   An array containing module info for all installed modules.
  */
 function drush_get_modules() {
-  return system_rebuild_module_data();
+  return module_rebuild_cache();
 }
 
 /**
@@ -31,8 +31,8 @@ function drush_get_modules() {
 function drush_check_module_dependencies($modules, $module_info) {
   $status = array();
   foreach ($modules as $key => $module) {
-    $dependencies = $module_info[$module]->requires;
-    $unmet_dependencies = array_diff(array_keys($dependencies), array_keys($module_info));
+    $dependencies = $module_info[$module]->info['dependencies'];
+    $unmet_dependencies = array_diff($dependencies, array_keys($module_info));
     if (!empty($unmet_dependencies)) {
       $status[$key]['error'] = array(
           'code' => 'DRUSH_PM_ENABLE_DEPENDENCY_NOT_FOUND',
@@ -40,19 +40,8 @@ function drush_check_module_dependencies($modules, $module_info) {
       );
     }
     else {
-      // check for version incompatibility
-      foreach ($dependencies as $dependency_name => $v) {
-        $current_version = $module_info[$dependency_name]->info['version'];
-        $incompatibility = drupal_check_incompatibility($v, $current_version);
-        if (!is_null($incompatibility)) {
-          $status[$key]['error'] = array(
-            'code' => 'DRUSH_PM_ENABLE_DEPENDENCY_VERSION_MISMATCH',
-            'message' => dt('Module !module cannot be enabled because it depends on !dependency !required_version but !current_version is available', array('!module' => $module, '!dependency' => $dependency_name, '!required_version' => $incompatibility, '!current_version' => $current_version))
-          );
-        }
-      }
+      $status[$key]['dependencies'] = $dependencies;
     }
-    $status[$key]['dependencies'] = array_keys($dependencies);
   }
 
   return $status;
@@ -71,7 +60,7 @@ function drush_check_module_dependencies($modules, $module_info) {
 function drush_module_dependents($modules, $module_info) {
   $dependents = array();
   foreach ($modules as $module) {
-    $dependents = array_merge($dependents, array_keys($module_info[$module]->required_by));
+    $dependents = array_merge($dependents, $module_info[$module]->info['dependents']);
   }
 
   return array_unique($dependents);
@@ -105,7 +94,9 @@ function drush_module_disable($modules) {
  */
 function drush_module_uninstall($modules) {
   require_once drush_get_context('DRUSH_DRUPAL_ROOT') . '/includes/install.inc';
-  drupal_uninstall_modules($modules);
+  foreach ($modules as $module) {
+    drupal_uninstall_module($module);
+  }
 }
 
 /**
@@ -118,7 +109,7 @@ function drush_module_uninstall($modules) {
 function drush_system_modules_form_submit($active_modules) {
   module_load_include('inc', 'system', 'system.admin'); 
   $form_state = array('values' => array('status' => $active_modules));
-  drupal_form_submit('system_modules', $form_state);
+  drupal_execute('system_modules', $form_state);
 }
 
 /**
@@ -138,7 +129,7 @@ function drush_get_themes() {
  *  Array of theme names.
  */
 function drush_theme_enable($themes) {
-  theme_enable($themes);
+  db_query("UPDATE {system} SET status = 1 WHERE type = 'theme' AND name IN (".db_placeholders($themes, 'text').")", $themes);
 }
 
 /**
@@ -148,6 +139,6 @@ function drush_theme_enable($themes) {
  *  Array of theme names.
  */
 function drush_theme_disable($themes) {
-  theme_disable($themes);
+  db_query("UPDATE {system} SET status = 0 WHERE type = 'theme' AND name IN (".db_placeholders($themes, 'text').")", $themes);
 }
 

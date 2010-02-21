@@ -1,28 +1,28 @@
 <?php
-// $Id: drupal_7.inc,v 1.1 2009/10/04 01:32:22 weitzman Exp $
+// $Id: drupal_7.inc,v 1.5 2010/01/19 21:25:28 grugnog Exp $
 
-function pm_update_filter(&$release) {
+function pm_update_filter(&$project) {
   $update = FALSE;
-  switch($release['status']) {
+  switch($project['status']) {
     case UPDATE_CURRENT:
       $status = dt('Up to date');
-      $release['candidate_version'] = $release['recommended'];
+      $project['candidate_version'] = $project['recommended'];
       break;
     case UPDATE_NOT_CURRENT:
       $status = dt('Update available');
-      pm_release_recommended($release);
+      pm_release_recommended($project);
       break;
     case UPDATE_NOT_SECURE:
       $status = dt('SECURITY UPDATE available');
-      pm_release_recommended($release);
+      pm_release_recommended($project);
       break;
     case UPDATE_REVOKED:
       $status = dt('Installed version REVOKED');
-      pm_release_recommended($release);
+      pm_release_recommended($project);
       break;
     case UPDATE_NOT_SUPPORTED:
       $status = dt('Installed version not supported');
-      pm_release_recommended($release);
+      pm_release_recommended($project);
       break;
     case UPDATE_NOT_CHECKED:
       $status = dt('Unable to check status');
@@ -64,22 +64,28 @@ function _pm_get_update_info($projects = NULL) {
   return $data;
 }
 
-/**
- * Get project information from drupal.org.
- *
- * @param $projects An array of project names
- */
 function pm_get_project_info($projects) {
-  $info = array();
   $data = array();
+  include_once drupal_get_path('module', 'update') .'/update.fetch.inc';
+
   foreach ($projects as $project_name => $project) {
     $url = UPDATE_DEFAULT_URL. "/$project_name/". drush_drupal_major_version() . '.x';
     $xml = drupal_http_request($url);
-    $data[] = $xml->data;
+    if (isset($xml->error)) {
+      drush_set_error(dt(
+        'HTTP Request to @request has failed. @error',
+        array('@request' => $xml->request, '@error' => $xml->error)
+      ));
+    }
+    elseif (!$info = update_parse_xml($xml->data)) {
+      drush_set_error(dt(
+        'No release history found for @project_name',
+        array('@project_name' => $project_name)
+      ));
+    }
+    else {
+      $data[$project_name] = $info;
+    }
   }
-  if ($data) {
-    include_once drupal_get_path('module', 'update') .'/update.fetch.inc';
-    $info = update_parse_xml($data);
-  }
-  return $info;
+  return $data;
 }

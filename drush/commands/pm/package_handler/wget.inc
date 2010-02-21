@@ -1,5 +1,5 @@
 <?php
-// $Id: wget.inc,v 1.5 2009/06/02 03:45:44 weitzman Exp $
+// $Id: wget.inc,v 1.9 2010/01/17 16:03:24 weitzman Exp $
 
 /**
  * @file Drush PM Wget extension
@@ -18,7 +18,10 @@ function package_handler_install_project($project, $info, $path = '.') {
   // Get the filename...
   $filename = explode('/', $info['download_link']);
   $filename = array_pop($filename);
-  $fullpath = $path . $filename;
+
+  // Set our directory to the download location.
+  $olddir = getcwd();
+  chdir($path);
 
   // Download it.
   if (!drush_shell_exec("wget " . $info['download_link'])) {
@@ -29,12 +32,14 @@ function package_handler_install_project($project, $info, $path = '.') {
     drush_log("Downloading " . $filename . " was successful.");
   }
   else {
+    chdir($olddir);
     return drush_set_error('DRUSH_PM_DOWNLOAD_FAILED', "Unable to download $filename to $path from ". $info['download_link']);
   }
 
   // Check Md5 hash
   if (md5_file($filename) != $info['mdhash'] && !drush_get_context('DRUSH_SIMULATE')) {
     drush_op('unlink', $filename);
+    chdir($olddir);
     return drush_set_error('DRUSH_PM_FILE_CORRUPT', "File $filename is corrupt (wrong md5 checksum).");
   }
   else {
@@ -44,17 +49,29 @@ function package_handler_install_project($project, $info, $path = '.') {
   // Decompress
   drush_shell_exec("gzip -d " . $filename);
   $tarpath = substr($filename, 0, strlen($filename)-3);
+
   // Untar
-  drush_shell_exec("tar -xf $tarpath -C \"$path\"");
+  drush_shell_exec("tar -xf $tarpath");
   // We're not using tar -xzf because that's not working on windows...
+
+  // If specified, rename the dodgy directory used by the drupal project' packaging script.
+  if ($project == 'drupal' && $rename = drush_get_option('drupal-project-rename')) {
+    drush_shell_exec("tar -tf $tarpath");
+    $output = drush_shell_exec_output();
+    // The dodge directory name is always the first line of output.
+    drush_op('rename', $path . $output[0], $path . '/' . trim($rename, '/'));
+  }
 
   // Remove the tarball
   drush_op('unlink', $tarpath);
 
-  // 'drupal' project gets tarred as drupal-6-10/foo instead of drupal/foo so must be excluded from test below.
+  // Set working directory back to the previous working directory.
+  chdir($olddir);
+
+  // 'drupal' project and profiles get untarred as drupal-6-10/foo instead of drupal/foo so must be excluded from test below.
   // Translations get untarred into the Drupal root, so there is no easy way to check.
-  if (!is_dir($path . $project) && !drush_get_context('DRUSH_SIMULATE') && $project != 'drupal' && $info['type'] != 'translation') {
-    return drush_set_error('DRUSH_PM_FILE_UNTAR_ERROR', "Downloaded file $filename couldn't be untarred correctly");
+  if (!is_dir($path . '/' . $project) && !drush_get_context('DRUSH_SIMULATE') && $project != 'drupal' && !in_array($info['type'], array('translation', 'profile'))) {
+    return drush_set_error('DRUSH_PM_FILE_UNTAR_ERROR', "Downloaded file $filename couldn't be untarred to $path/$project correctly");
   }
   else {
     return TRUE;
@@ -65,5 +82,9 @@ function package_handler_install_project($project, $info, $path = '.') {
  * This is an alias of the install function, since they are identical
  */
 function package_handler_update_project($project, $info, $path = '.') {
-  return package_handler_install_project($project, $info, $path);
+  // Updates are passed the current project directory
+  // so we move up a directory so that the untar lands in the right place.
+  $path = explode('/', $path);
+  array_pop($path);
+  return package_handler_install_project($project, $info, implode('/', $path));
 }

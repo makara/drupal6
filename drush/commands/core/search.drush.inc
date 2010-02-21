@@ -1,5 +1,5 @@
 <?php
-// $Id: search.drush.inc,v 1.1 2009/10/26 12:59:25 weitzman Exp $
+// $Id: search.drush.inc,v 1.4 2009/12/15 13:30:51 weitzman Exp $
 
 function drush_core_search_status() {
   list($remaining, $total) = _drush_core_search_status();
@@ -48,16 +48,18 @@ function _drush_core_search_index() {
   list($remaining, ) = _drush_core_search_status();
   register_shutdown_function('search_update_totals');
   while ($remaining > 0) {
-    drush_log(dt('Remaining items to be indexed: ' . $remaining));
+    drush_log(dt('Remaining items to be indexed: ' . $remaining), 'ok');
+    // Use drush_backend_invoke() to start subshell. Avoids out of memory issue.
+    $eval = "register_shutdown_function('search_update_totals');";
     if (drush_drupal_major_version() >= 7) {
       foreach (variable_get('search_active_modules', array('node', 'user')) as $module) {
-        module_invoke($module, 'update_index');
+        $eval .= " module_invoke($module, 'update_index');";
       }
     }
     else {
-      module_invoke_all('update_index');
+      $eval .= " module_invoke_all('update_index');";
     }
-    search_update_totals();
+    drush_backend_invoke('eval', array($eval));
     list($remaining, ) = _drush_core_search_status();
   }
 }
