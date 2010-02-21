@@ -65,22 +65,6 @@ function _feature_permissions_user_default_permissions() {
     ),
   );
 
-  // Exported permission: admin inline
-  $permissions[] = array(
-    'name' => 'admin inline',
-    'roles' => array(
-      '0' => 'admin',
-    ),
-  );
-
-  // Exported permission: admin menu
-  $permissions[] = array(
-    'name' => 'admin menu',
-    'roles' => array(
-      '0' => 'admin',
-    ),
-  );
-
   // Exported permission: administer actions
   $permissions[] = array(
     'name' => 'administer actions',
@@ -193,6 +177,14 @@ function _feature_permissions_user_default_permissions() {
     ),
   );
 
+  // Exported permission: administer url aliases
+  $permissions[] = array(
+    'name' => 'administer url aliases',
+    'roles' => array(
+      '0' => 'admin',
+    ),
+  );
+
   // Exported permission: administer users
   $permissions[] = array(
     'name' => 'administer users',
@@ -212,6 +204,14 @@ function _feature_permissions_user_default_permissions() {
   // Exported permission: change own username
   $permissions[] = array(
     'name' => 'change own username',
+    'roles' => array(
+      '0' => 'admin',
+    ),
+  );
+
+  // Exported permission: create url aliases
+  $permissions[] = array(
+    'name' => 'create url aliases',
     'roles' => array(
       '0' => 'admin',
     ),

@@ -41,6 +41,8 @@ function _profile_settings_modules_extra() {
     'views_ui', 'context_ui', 'imagecache_ui',
     // Others
     'diff', 'token', 'jquery_ui', 'date_popup',
+    // Path
+    'path',
     // Custom features
     'feature_permissions', 'feature_page', 'feature_settings',
     // Custom modules
