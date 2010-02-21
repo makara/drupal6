@@ -225,13 +225,6 @@ div.pager,
   -webkit-border-radius:3px;
   }
 
-#page * {
-  -moz-border-radius:0px;
-  -webkit-border-radius:0px;
-  -moz-box-shadow:none;
-  -webkit-box-shadow:none;
-  }
-
 div.page-content { padding:4px; }
 
 div.content-wrapper { margin:5px; }
@@ -287,7 +280,10 @@ input.form-submit:hover {
 /**
  * Blocks
  */
-div.block h2.block-title {
+div.messages,
+.block { margin:5px; }
+
+.block .block-title {
   background:#08c url(images/cube.png) 0px -190px repeat-x;
   color:#fff;
   }

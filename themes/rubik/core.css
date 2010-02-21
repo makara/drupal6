@@ -18,56 +18,10 @@ hr { display:none; }
   }
 
 /**
- * Help ===============================================================
- */
-a#help-toggler {
-  position:absolute;
-  right:30px;
-  bottom:10px;
-  background:url(images/sprite.png) -20px 0px no-repeat;
-
-  height:20px;
-  width:20px;
-
-  text-indent:-999px;
-  overflow:hidden;
-  }
-
-  a#help-toggler.toggler-active { background-position:-20px -20px; }
-
-  a#help-toggler.toggler-disabled {
-    cursor:default;
-    background-position:-20px -40px;
-    }
-
-#help-text {
-  background:#fff url(images/vrule.png) 65% 0% repeat-y;
-  border-bottom:1px solid #ddd;
-  }
-
-  #help-text.with-tabs {
-    -moz-border-radius:2px 2px 0px 0px;
-    -webkit-border-radius-top-left:2px;
-    -webkit-border-radius-top-right:2px;
-    }
-
-  #help-text label.breadcrumb-label,
-  #help-text span.breadcrumb-link { display:block; }
-
-  #help-text span.breadcrumb-link {
-    background:url(images/sprite.png) -185px -180px no-repeat;
-    padding-left:20px;
-    }
-
-/**
  * Console ============================================================
  */
 div.messages {
-  -moz-border-radius:3px;
-  -moz-box-shadow:#ddd 0px 1px 3px;
   padding:15px;
-  margin:5px;
-
   color:#036;
   background:#f8f8f8;
   border:5px solid #fff;
@@ -107,13 +61,6 @@ div.pager {
   div.pager ul.pager-list { float:left; }
   div.pager ul.pager-links { float:right; }
 
-  ul.pager a:hover {
-    background:#eee;
-    border-color:#ccc #ddd #eee;
-    -moz-box-shadow:#fff 0px 1px 0px;
-    -webkit-box-shadow:#fff 0px 1px 0px;
-    }
-
 /**
  * Menus, lists =======================================================
  */
@@ -133,8 +80,8 @@ ul.menu li {
   .item-list ul li:last-child,
   .prose .item-list li:last-child,
   ul.menu li:last-child {
-    border:0px;
-    padding:5px 10px;
+    border-bottom:0px;
+    padding-bottom:5px;
     }
 
 ul.admin-list li a span.icon {
@@ -175,9 +122,6 @@ table {
   border-color:#ccc #ddd #eee;
   border-width:1px;
   border-style:solid;
-
-  -moz-box-shadow:#fff 0px 1px 0px;
-  -webkit-box-shadow:#fff 0px 1px 0px;
   }
 
 table td,
@@ -194,12 +138,10 @@ table th {
   font-weight:normal;
   color:#666;
   background:#eee;
-  text-shadow:#fff 0px 1px 0px;
   }
 
   table thead th { border-top-color:#ccc; }
 
-table tr.odd td { background:#fff; }
 table td.active { background:#e4f0f8; }
 table tr.odd td.active { background:#ecf8fc; }
 
@@ -232,11 +174,6 @@ form.confirmation ul,
   border-width:1px;
   border-style:solid;
   border-color:#ccc #ddd #eee;
-
-  -moz-border-radius:3px;
-  -moz-box-shadow:#fff 0px 1px 0px;
-  -webkit-border-radius:3px;
-  -webkit-box-shadow:#fff 0px 1px 0px;
   }
 
   .form-item {
@@ -245,7 +182,6 @@ form.confirmation ul,
     }
 
   .admin-list { margin:0px; }
-  .block { margin:5px; }
 
 .block .item-list,
 .block .form-item,
@@ -254,8 +190,6 @@ form.confirmation ul,
 .form-item .form-item,
 .fieldset .form-item,
 table div.form-item {
-  -moz-box-shadow:none;
-  -webkit-box-shadow:none;
   background:transparent;
   padding:5px;
   margin:0px;
@@ -338,9 +272,6 @@ input.form-submit {
   border-style:solid;
   border-color:#ddd #ddd #ccc;
   background:#f4f4f4 url(images/bleeds.png) 0px -41px repeat-x;
-
-  -moz-border-radius:3px;
-  -webkit-border-radius:3px;
   }
 
   input.form-submit:hover {
@@ -357,7 +288,7 @@ input.form-submit {
   /* Teaser splitter */
   div.teaser-button-wrapper {
     position:relative;
-    z-index:1;
+    z-index:2;
     padding:5px 5px 0px;
     }
 
@@ -413,10 +344,6 @@ select.form-select {
 .admin-panel h3,
 .fieldset-title,
 .collapsible .fieldset-title a {
-  -moz-border-radius:2px 2px 0px 0px;
-  -webkit-border-radius-top-left:2px;
-  -webkit-border-radius-top-right:2px;
-
   display:block;
   font-size:11px;
   margin:0px;
@@ -442,7 +369,7 @@ select.form-select {
     display:block;
     }
 
-    .collapsed .fieldset-title span.icon { background-position:0px 0px; }
+    html.js .collapsed .fieldset-title span.icon { background-position:0px 0px; }
 
     .fieldset .collapsible .fieldset-title span.icon { display:none; }
 
@@ -455,28 +382,18 @@ select.form-select {
 
   .collapsible .fieldset-title {
     padding:0px;
-    -moz-border-radius:0px;
-    -webkit-border-radius:0px;
     background:transparent;
     }
 
-  .collapsed .fieldset-title a {
-    -moz-border-radius:2px;
-    -webkit-border-radius:2px;
-    padding-bottom:4px;
-    }
+  .collapsed .fieldset-title a { padding-bottom:4px; }
 
 .block .block-content,
 .fieldset-content {
-  -moz-border-radius:0px 0px 2px 2px;
-  -webkit-border-radius-bottom-left:2px;
-  -webkit-border-radius-bottom-right:2px;
-
   padding:10px 9px 9px;
   background:#fff;
   }
 
-  .collapsed .fieldset-content { display:none; }
+  html.js .collapsed .fieldset-content { display:none; }
 
   .fieldset .fieldset .fieldset-content { background:#fff; }
 
@@ -500,9 +417,6 @@ div.column-side {
   div.column-side div.column-wrapper { padding-left:10px; }
 
 form div.buttons {
-  -moz-border-radius:3px;
-  -webkit-border-radius:3px;
-
   background:#eee;
   border:1px solid #ddd;
   padding:9px;
@@ -515,7 +429,7 @@ form div.buttons {
 /**
  * "Boxes" aka generic wrappers =======================================
  */
-h2.box-title {
+.box-title {
   font-weight:normal;
   font-size:10px;
   text-transform:uppercase;
@@ -524,9 +438,6 @@ h2.box-title {
   border:1px solid #ddd;
   padding:4px 9px;
   margin:0px 0px 10px;
-
-  -moz-border-radius:3px;
-  -webkit-border-radius:3px;
   }
 
 /**
@@ -609,27 +520,43 @@ body.rubik div#admin-toolbar span.menu-description span.icon {
   }
 
 /**
- * Views UI ===========================================================
+ * Form description exceptions ========================================
  */
 
 /**
- * These elements are loosely floated against each other, making overlap
- * between relative positioned form elements a bit hairy. We strip things
- * down to avoid any major collisions.
+ * Some form elements are either too weirdly positioned or really benefit
+ * from persistent descriptions. Reset for all of these.
  */
+.page-content .form-item .widget-edit .description,
+#upload-attachments .description,
 #views-ajax-pad .form-item,
 #views-ajax-pad .form-item .description {
   background:transparent;
   border:0px;
   position:static;
+  display:block;
   }
 
+#upload-attachments .description,
 #views-ajax-pad .form-item .description {
   padding:0px;
   color:#666;
   display:block;
   max-width:none;
   }
+
+/**
+ * Form containers ====================================================
+ */
+.container-inline h2,
+.container-inline div {
+  display:inline;
+  border:0px;
+  padding:0px;
+  background:transparent;
+  }
+
+.container-inline { margin:0px 0px 10px; }
 
 /**
  * ORPHANED MARKUP ====================================================
@@ -643,10 +570,12 @@ div.compact-link {
   }
 
 div.compact-link a {
-  -moz-border-radius:3px;
-  -webkit-border-radius:3px;
   border:1px solid #ddd;
   padding:4px 9px;
   color:#666;
   background:#fff;
   }
+
+/* This is to make up for very bad CSS in the update.module */
+.update table.version td { padding:5px; }
+.update table.version ul.links a { padding:0px 5px; }
