@@ -6,7 +6,7 @@
  */
 function newpm_drush_help($section) {
   switch ($section) {
-    case 'drush:update_allcode':
+    case 'drush:update-allcode':
       return dt('Update code of all modules, including not installed.');
   }
 }
@@ -16,7 +16,7 @@ function newpm_drush_help($section) {
  */
 function newpm_drush_command() {
   $items = array();
-  $items['update allcode'] = array(
+  $items['update-allcode'] = array(
     'drupal dependencies' => array('update'),
     'description' => 'Update code of all modules, including not installed.',
     'aliases' => array('upall'),
@@ -36,7 +36,7 @@ function drush_newpm_update_allcode() {
   }
 
   $args = func_get_args();
-  array_unshift($args, 'updatecode');
+  array_unshift($args, 'pm-updatecode');
   call_user_func_array('drush_invoke', $args);
 }
 
