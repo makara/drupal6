@@ -1,5 +1,5 @@
 <?php
-// $Id: variable.drush.inc,v 1.15 2010/01/19 03:21:16 weitzman Exp $
+// $Id: variable.drush.inc,v 1.17 2010/02/22 21:33:15 weitzman Exp $
 
 /**
  * Implementation of hook_drush_help().
@@ -124,11 +124,11 @@ function drush_variable_get() {
 function drush_variable_set() {
   $args = func_get_args();
   if (!isset($args[0])) {
-    drush_set_error('DRUSH_VARIABLE_ERROR', dt('No variable specified.'));
+    return drush_set_error('DRUSH_VARIABLE_ERROR', dt('No variable specified.'));
   }
   $value = $args[1];
   if (!isset($value)) {
-    drush_set_error('DRUSH_VARIABLE_ERROR', dt('No value specified.'));
+    return drush_set_error('DRUSH_VARIABLE_ERROR', dt('No value specified.'));
   }
 
   $result = drush_variable_like($args[0]);
@@ -200,11 +200,6 @@ function drush_variable_delete() {
 
 // Query for similar variable names.
 function drush_variable_like($arg) {
-  if (drush_drupal_major_version() >= 7) {
-    $result = db_query("SELECT name FROM {variable} WHERE name LIKE :keyword ORDER by name ASC", array(':keyword' => $arg . '%'));
-  }
-  else {
-    $result = db_query("SELECT name FROM {variable} WHERE name LIKE '%s%' ORDER BY name ASC", $arg);
-  }
-  return $result;
+  return drush_db_select('variable', 'name', 'name LIKE :keyword', array(':keyword' => $arg . '%'), NULL, NULL, 'name');
 }
+

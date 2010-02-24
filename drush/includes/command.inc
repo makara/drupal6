@@ -1,5 +1,5 @@
 <?php
-// $Id: command.inc,v 1.63 2010/01/25 02:35:13 weitzman Exp $
+// $Id: command.inc,v 1.66 2010/02/22 04:03:17 weitzman Exp $
 
 /**
  * @file
@@ -475,6 +475,9 @@ function drush_commandfile_list() {
 function _drush_find_commandfiles($phase) {
   $cache =& drush_get_context('DRUSH_COMMAND_FILES', array());
 
+  static $evaluated = array();
+  static $deferred = array();
+
   $searchpath = array();
   switch ($phase) {
     case DRUSH_BOOTSTRAP_DRUSH:
@@ -496,48 +499,76 @@ function _drush_find_commandfiles($phase) {
       }
 
       // User commands, residing in ~/.drush
-      if (!empty($_SERVER['HOME'])) {
-        $searchpath[] = $_SERVER['HOME'] . '/.drush';
+      if (!is_null(drush_server_home())) {
+        $searchpath[] = drush_server_home() . '/.drush';
       }
       break;
     case DRUSH_BOOTSTRAP_DRUPAL_SITE:
       $searchpath[] = conf_path() . '/modules';
-      $searchpath[] = conf_path() . '/themes';
       // Too early for variable_get('install_profile', 'default'); Just use default.
       $searchpath[] = "profiles/default/modules";
-      // Add all module and theme paths, even disabled ones. Prefer speed over accuracy.
+      // Add all module paths, even disabled modules. Prefer speed over accuracy.
       $searchpath[] = 'sites/all/modules';
-      $searchpath[] = 'sites/all/themes';
       break;
     case DRUSH_BOOTSTRAP_DRUPAL_FULL:
-      // Add enabled modules and themes paths.
-      foreach (drush_get_projects() as $project) {
-        if ($project->status) {
-          $filename = drupal_get_filename($project->type, $project->name);
-          $searchpath[] = dirname($filename);
-        }
+      // Add enabled module paths. Since we are bootstrapped,
+      // we can use the Drupal API.
+      foreach (module_list() as $module) {
+        $filename = drupal_get_filename('module', $module);
+        $searchpath[] = dirname($filename);
       }
       break;
   }
 
   if (sizeof($searchpath)) {
-    $list = array();
+    // Build a list of all of the modules to attempt to load.
+    // Start with any modules deferred from a previous phase.
+    $list = $deferred;
 
-    // Scan for drush command files; load if found.
+    // Scan for drush command files; add to list for consideration if found.
     foreach (array_unique($searchpath) as $path) {
       if (is_dir($path)) {
         $files = drush_scan_directory($path, '/\.drush\.inc$/');
         foreach ($files as $filename => $info) {
           $module = basename($filename, '.drush.inc');
-          // We check both arrays because we may be called multiple times with different bootstrap levels
-          if (!array_key_exists($module, $cache) && !array_key_exists($module, $list)) {
-            require_once(realpath($filename));
+          // Only try to bootstrap modules that we have never seen before, or that we
+          // have tried to load but did not due to an unmet _drush_load() requirement.
+          if (!array_key_exists($module, $evaluated) && file_exists($filename)) {
+            $evaluated[$module] = TRUE;
             $list[$module] = $filename;
           }
         }
       }
     }
 
+    // Check each file in the consideration list; if there is
+    // a modulename_drush_load() function in modulename.drush.load.inc,
+    // then call it to determine if this file should be loaded.
+    foreach ($list as $module => $filename) {
+      $load_command = TRUE;
+      $load_test_inc = dirname($filename) . "/" . $module . ".drush.load.inc";
+      if (file_exists($load_test_inc)) {
+        require_once($load_test_inc);
+        $load_test_func = $module . "_drush_load";
+        if (function_exists($load_test_func)) {
+          $load_command = $load_test_func($phase);
+        }
+      }
+      if ($load_command) {
+        require_once(realpath($filename));
+        unset($deferred[$module]);
+      }
+      else {
+        unset($list[$module]);
+        // Signal that we should try again on 
+        // the next bootstrap phase.  We set
+        // the flag to the filename of the first
+        // module we find so that only that one
+        // will be retried.
+        $deferred[$module] = $filename;
+      }
+    }
+    
     if (sizeof($list)) {
       $cache = array_merge($cache, $list);
       ksort($cache);

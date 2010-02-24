@@ -1,5 +1,5 @@
 <?php
-// $Id: context.inc,v 1.18 2010/01/01 07:53:11 greg1anderson Exp $
+// $Id: context.inc,v 1.22 2010/02/23 19:32:10 weitzman Exp $
 /**
  * @file
  * The Drush context API implementation.
@@ -76,7 +76,7 @@ function drush_context_names() {
     'process', 'options', 'stdin', 'alias', 'specific',
     'custom', 'site', 'drupal', 'user', 'system',
     'drush', 'default');
-  
+
   return $contexts;
 }
 
@@ -108,13 +108,8 @@ function _drush_config_file($context) {
   }
 
   // in the user home directory
-  // $_SERVER['HOME'] isn't set on windows and generates a Notice.
-  if(isset($_SERVER['HOME'])){
-    $configs['user'] = $_SERVER['HOME'] . '/.drushrc.php';
-  }
-  else{
-    // home on windows
-    $configs['user'] = $_SERVER['HOMEDRIVE'] . $_SERVER['HOMEPATH'] . '/.drushrc.php';
+  if (!is_null(drush_server_home())) {
+    $configs['user'] = drush_server_home() . '/.drushrc.php';
   }
 
 
@@ -132,6 +127,10 @@ function _drush_config_file($context) {
  * Load drushrc files (if available) from several possible locations.
  */
 function drush_load_config($context) {
+  drush_load_config_file($context, _drush_config_file($context));
+}
+
+function drush_load_config_file($context, $config) {
   global $drush_conf_override;
 
   // Only reset $drush_conf_override if the array is not set, otherwise keep old values and append new values to it.
@@ -139,12 +138,11 @@ function drush_load_config($context) {
     $drush_conf_override = array();
   }
 
-  $config = _drush_config_file($context);
   if (file_exists($config)) {
     drush_log(dt('Loading drushrc "!config" into "!context" scope.', array('!config' => realpath($config), '!context' => $context)), 'bootstrap');
-    $options['context-path'][$context] = $config;
+    $options['context-path'] = realpath($config);
     require_once($config);
-    
+
     // There are certain options such as 'site-aliases' and 'command-specific'
     // that must be merged together if defined in multiple drush configuration
     // files.  If we did not do this merge, then the last configuration file
@@ -165,7 +163,7 @@ function drush_load_config($context) {
         }
       }
     }
-    
+
     drush_set_context($context, $options);
 
     // Instruct core not to queries since we are not outputting them.
@@ -226,7 +224,7 @@ function drush_set_context($context, $value) {
  *
  * @param context
  *   Optional. Any of the default defined contexts.
- @
+ *
  * @return
  *   If context is not supplied, the entire context cache will be returned.
  *   Otherwise only the requested context will be returned.
@@ -333,6 +331,30 @@ function drush_get_option($option, $default = NULL, $context = NULL) {
   }
 
   return $default;
+}
+
+/**
+ * Get all of the values for an option in every context.
+ *
+ * @param option
+ *   The name of the option to get
+ * @return
+ *   An array whose key is the context name and value is
+ *   the specific value for the option in that context.
+ */
+function drush_get_context_options($option) {
+  $result = array();
+  
+  $contexts = drush_context_names();
+  foreach ($contexts as $context) {
+    $value = _drush_get_option($option, drush_get_context($context));
+
+    if ($value !== null) {
+      $result[$context] = $value;
+    }
+  }
+  
+  return $result;
 }
 
 /**

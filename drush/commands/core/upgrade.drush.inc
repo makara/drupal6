@@ -1,5 +1,5 @@
 <?php
-// $Id: upgrade.drush.inc,v 1.6 2010/01/21 22:24:47 weitzman Exp $
+// $Id: upgrade.drush.inc,v 1.9 2010/01/29 14:54:16 weitzman Exp $
 
 /* TODO
  * - upgrade to specific releases.
@@ -22,7 +22,7 @@ function upgrade_drush_command() {
     'arguments' => array(
       'target' => 'The name of a sitealias which points to the destination site. root, uri, and db-url keys are required. See example.drushrc.php for more information.'),
     'options' => array(
-      'structure-tables-key' => 'A key in the $structure_tables array. @see example.drushrc.php. Defaults to \'common\'.',
+      'structure-tables-key' => 'A key in the structure-tables array. @see example.drushrc.php. Defaults to \'common\'.',
       'source-dump' => 'Path to dump file. Medium or large sized sites should set this. Optional; default is to create a temporary file.',
       'db-su' => 'Account to use when dropping and creating the target database. Optional.',
     ),
@@ -120,7 +120,7 @@ function drush_upgrade_site_upgrade($target_key) {
   // Copy source database to target database. The source DB is not changed.
   // Always set 'common' at minimum. Sites that want other can create other key in drushrc.php.
   if (!drush_get_option('structure-tables-key')) {
-    drush_set_option('structure_tables-key', 'common');
+    drush_set_option('structure-tables-key', 'common');
   }
   // Always blow away the target database so we start fresh.
   drush_set_option('create-db', TRUE);
@@ -129,11 +129,8 @@ function drush_upgrade_site_upgrade($target_key) {
   if (drush_get_error()) return -1; // Early exit if we see an error.
 
   // Run update.php in a subshell for better isolation in case of failure.
-  // TODO: leverage redispatch code once that materializes.
-  // Possibly add code to spawn new subshell when memory gets 90% consumed. @see migrate module.
-  $drush_script = isset($target_alias['!drush_script']) ? $target_alias['!drush_script'] : NULL;
-  $remote_host = isset($target_alias['remote-host']) ? $target_alias['remote-host'] : NULL;
-  drush_backend_invoke('updatedb', array('root' => $destination_core), 'GET', 'TRUE', $drush_script, $remote_host, $target_alias['root']);
+  // TODO: Possibly add code to spawn new subshell when memory gets 90% consumed. @see migrate module.
+  drush_do_site_command($target_alias, 'updatedb');
 }
 
 // Replace db_url with DB name from target. updatedb will later append a DBTNG compatible version.

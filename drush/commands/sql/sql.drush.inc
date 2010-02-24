@@ -1,5 +1,5 @@
 <?php
-// $Id: sql.drush.inc,v 1.36 2010/01/20 18:10:11 greg1anderson Exp $
+// $Id: sql.drush.inc,v 1.37 2010/01/29 06:14:26 greg1anderson Exp $
 
 /**
  * @file Drush sql commands
@@ -85,7 +85,7 @@ function sql_drush_command() {
   );
   $items['sql-sync'] = array(
     'description' => 'Copy source database to target database using rsync.',
-    'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_CONFIGURATION,
+    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'examples' => array(
       'drush sql-sync prod dev' => 'Copy the DB defined in sites/prod to the DB in sites/dev.',
     ),

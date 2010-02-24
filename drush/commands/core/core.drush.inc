@@ -1,5 +1,5 @@
 <?php
-// $Id: core.drush.inc,v 1.77 2010/01/25 16:13:01 weitzman Exp $
+// $Id: core.drush.inc,v 1.81 2010/02/23 19:32:09 weitzman Exp $
 
 /**
  * @file
@@ -62,12 +62,12 @@ function core_drush_command() {
   $items['php-script'] = array(
     'description' => "Run php script(s).",
     'examples' => array(
-      'drush php-script scratch.php' => 'Run scratch.php script. See commands/core directory.',
-      'drush php-script example.php --script-path=/path/to/scripts:/another/path' => 'Run script from specified paths',
+      'drush php-script scratch' => 'Run scratch.php script. See commands/core directory.',
+      'drush php-script example --script-path=/path/to/scripts:/another/path' => 'Run script from specified paths',
       'drush php-script' => 'List all available scripts.',
     ),
     'arguments' => array(
-      'filename' => 'Optional. The file you wish to execute. If omitted, list files ending in .php in the current working directory and specified script-path. Some might not be real drush scripts. Beware.',
+      'filename' => 'Optional. The file you wish to execute (without extension). If omitted, list files ending in .php in the current working directory and specified script-path. Some might not be real drush scripts. Beware.',
     ),
     'options' => array(
       '--script-path' => "Additional paths to search for scripts.  Use POSIX path separator (':') for multiple paths.",
@@ -368,6 +368,9 @@ function _core_site_status_table() {
     if ($site_root = drush_get_context('DRUSH_DRUPAL_SITE_ROOT')) {
       $status_table['Site Path'] = $site_root;
       $status_table['Site URI'] = drush_get_context('DRUSH_URI');
+      if (function_exists('file_directory_path')) {
+        $status_table['File Directory Path'] = file_directory_path();
+      }
       if ($creds = drush_get_context('DRUSH_DB_CREDENTIALS')) {
         $status_table['Database Driver'] = $creds['driver'];
         $status_table['Database Hostname'] = $creds['host'];
@@ -387,6 +390,8 @@ function _core_site_status_table() {
         }
       }
     }
+    $status_table['Default theme'] = drush_theme_get_default();
+    $status_table['Administration theme'] = drush_theme_get_admin();
   }
   if (function_exists('php_ini_loaded_file')) {
     // Function available on PHP >= 5.2.4, but we use it if available to help
@@ -394,8 +399,7 @@ function _core_site_status_table() {
     $status_table['PHP configuration'] = php_ini_loaded_file();
   }
   $status_table['Drush Version'] = DRUSH_VERSION;
-  $status_table['Default theme'] = drush_theme_get_default();
-  $status_table['Administration theme'] = drush_theme_get_admin();
+  $status_table['Drush configuration'] = implode(' ', drush_get_context_options('context-path'));
   return $status_table;
 }
 
@@ -436,6 +440,7 @@ function drush_core_status() {
       }
     }
   }
+  drush_backend_set_result($status_table);
   // Print either an ini-format list or a formatted ASCII table
   if (drush_get_option('pipe')) {
     if (count($status_table) == 1) {
@@ -497,7 +502,7 @@ function drush_core_php_script() {
     $script = $args[0];
     $found = FALSE;
     foreach($searchpath as $path) {
-      $script_filename = $path . '/' . $script;
+      $script_filename = $path . '/' . $script . '.php';
       if (file_exists($script_filename)) {
         include($script_filename);
         $found = TRUE;
@@ -507,7 +512,7 @@ function drush_core_php_script() {
     }
 
     if (!$found) {
-      drush_set_error('script not found', dt('Unable to find any of the following: @files', array('@files' => implode(', ', $all))));
+      drush_set_error('Script not found.', dt('Unable to find any of the following: @files', array('@files' => implode(', ', $all))));
     }
   }
 }

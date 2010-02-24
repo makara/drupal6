@@ -1,5 +1,5 @@
 <?php
-// $Id: example.drushrc.php,v 1.26 2010/01/15 01:13:24 greg1anderson Exp $
+// $Id: example.drushrc.php,v 1.31 2010/02/23 18:10:36 greg1anderson Exp $
 
 /*
  * Examples of valid statements for a drushrc.php file. Use this file to cut down on
@@ -52,7 +52,7 @@
 // Enable verbose mode.
 # $options['v'] = 1;
 
-// Default logging level for php notices.  Defaults to "notice"; set to "warning" 
+// Default logging level for php notices.  Defaults to "notice"; set to "warning"
 // if doing drush development.  Also make sure that error_reporting is set to E_ALL
 // in your php configuration file.  See 'drush status' for the path to your php.ini file.
 # $options['php-notices'] = 'warning';
@@ -61,32 +61,29 @@
 # $options['ssh-options'] = '-o PasswordAuthentication=no';
 
 /*
- * Customize this associative array with your own tables. This is the
- * list of tables that are entirely omitted by the 'sql-dump' and 'sql-sync'
- * commands when a skip-tables-key is provided. You may add new tables to the existing array or add a new
- * element.
- */
-$options['skip-tables'] = array(
- 'common' => array('accesslog', 'cache', 'cache_filter', 'cache_menu', 'cache_page', 'history', 'search_dataset', 'search_index', 'search_total', 'sessions', 'watchdog'),
-);
-
-/*
- * Customize this associative array with your own tables. This is the 
- * list of tables whose *data* is skipped by the 'sql-dump' and 'sql-sync' 
- * commands when a structure-tables-key is provided. You may add new tables to the existing array or add a new 
- * element.
+ * Customize this associative array with your own tables. This is the list of
+ * tables whose *data* is skipped by the 'sql-dump' and 'sql-sync' commands when
+ * a structure-tables-key is provided. You may add new tables to the existing
+ * array or add a new element.
  */
 $options['structure-tables'] = array(
  'common' => array('accesslog', 'cache', 'cache_filter', 'cache_menu', 'cache_page', 'history', 'search_dataset', 'search_index', 'search_total', 'sessions', 'watchdog'),
 );
 
+/*
+ * Customize this associative array with your own tables. This is the list of
+ * tables that are entirely omitted by the 'sql-dump' and 'sql-sync' commands
+ * when a skip-tables-key is provided. This is useful if your database contains
+ * non Drupal tables used by some other application or during a migration for
+ * example. You may add new tables to the existing array or add a new element.
+ */
+$options['skip-tables'] = array(
+ 'common' => array('migration_data1', 'migration_data2'),
+);
+
 // Use cvs checkouts when downloading and updating modules.
 // An example of a command specific argument being set in drushrc.php
 // $options['package-handler'] = 'cvs';
-
-// Specify additional directories to search for scripts
-// Use POSIX path separator (':')
-# $options['script-path'] = 'sites/all/scripts:profiles/myprofile/scripts';
 
 /*
  * Command-specific options
@@ -105,6 +102,10 @@ $options['structure-tables'] = array(
  */
 # $options['command-specific']['rsync'] = array('verbose' => TRUE);
 # $options['command-specific']['dl'] = array('cvscredentials' => 'user:pass');
+
+// Specify additional directories to search for scripts
+// Use POSIX path separator (':')
+# $options['script']['script-path'] = 'sites/all/scripts:profiles/myprofile/scripts';
 
 /**
  * Variable overrides:
@@ -159,17 +160,23 @@ $options['structure-tables'] = array(
  *     omitted for local sites, as this option controls whether or not
  *     rsync parameters are for local or remote machines.
  * - 'remote-user': The username to log in as when using ssh or rsync.
+ * - 'ssh-options': If the target requires special options, such as a non-
+ *     standard port, alternative identity file, or alternative
+ *     authentication method, ssh- options can contain a string of extra
+ *     options  that are used with the ssh command, eg "-p 100"
  * - 'path-aliases': An array of aliases for common rsync targets.
  *   Relative aliases are always taken from the Drupal root.
- *     '!drush': The path to the folder where drush is stored.  Optional;
+ *     '%drush': The path to the folder where drush is stored.  Optional;
  *       defaults to the folder containing the running script.  Always be sure
- *       to set '!drush' if the path to drush is different on the remote server.
- *     '!drush-script': The path to the 'drush' script (used by backend invoke);
+ *       to set '%drush' if the path to drush is different on the remote server.
+ *     '%drush-script': The path to the 'drush' script (used by backend invoke);
  *       default is 'drush' on remote machines, or the full path to drush.php on
- *       the local machine.  Note that you only need to define one of '!drush' 
- *       or '!drush-script', as drush can infer one from the other.
- *     '!dump': Path to the file that "drush sql-sync" should use to store sql-dump file.
- *     '!files': Path to 'files' directory.
+ *       the local machine.  Note that you only need to define one of '%drush'
+ *       or '%drush-script', as drush can infer one from the other.
+ *     '%dump': Path to the file that "drush sql-sync" should use to store sql-dump file.
+ *     '%files': Path to 'files' directory.  This will be looked up if not specified.
+ *     '%root': A reference to the Drupal root defined in the 'root' item
+ *       in the site alias record.
  *
  * Remove the leading hash signs to enable.
  */
@@ -180,15 +187,14 @@ $options['structure-tables'] = array(
 #    'remote-host' => 'mystagingserver.myisp.com',
 #    'remote-user' => 'publisher',
 #    'path-aliases' => array(
-#      '!drush' => '/drush/path/to/drush',
-#      '!drush-script' => '/drush/path/to/drush/drush',
-#      '!dump' => '/path/to/live/sql_dump.sql',
-#      '!files' => 'sites/mydrupalsite.com/files',
-#      '!custom' => '/my/custom/path',
+#      '%drush' => '/path/to/drush',
+#      '%drush-script' => '/path/to/drush/drush',
+#      '%dump' => '/path/to/live/sql_dump.sql',
+#      '%files' => 'sites/mydrupalsite.com/files',
+#      '%custom' => '/my/custom/path',
 #     ),
 #  );
 #$options['site-aliases']['dev'] = array(
 #    'uri' => 'dev.mydrupalsite.com',
 #    'root' => '/path/to/drupal/root',
 #  );
-

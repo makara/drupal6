@@ -1,5 +1,5 @@
 <?php
-// $Id: backend.inc,v 1.25 2010/01/21 15:01:53 adrian Exp $
+// $Id: backend.inc,v 1.27 2010/01/29 06:14:26 greg1anderson Exp $
 
 /**
  * @file Drush backend API
@@ -254,7 +254,7 @@ function drush_backend_invoke($command, $data = array(), $method = 'GET', $integ
 
 /*
  * A variant of drush_backend_invoke() which specifies command and arguments separately.
- */ 
+ */
 function drush_backend_invoke_args($command, $args, $data = array(), $method = 'GET', $integrate = TRUE, $drush_path = NULL, $hostname = NULL, $username = NULL) {
   $cmd = _drush_backend_generate_command($command, $args, $data, $method, $drush_path, $hostname, $username);
   return _drush_backend_invoke($cmd, $data, $integrate);
@@ -342,7 +342,7 @@ function _drush_backend_generate_command($command, $args, &$data, $method = 'GET
   }
 
   $drush_path = !is_null($drush_path) ? $drush_path : (is_null($hostname) ? DRUSH_COMMAND : 'drush'); // Call own drush.php file on local machines, or 'drush' on remote machines.
-  $data['root'] = ($data['root']) ? $data['root'] : drush_get_context('DRUSH_DRUPAL_ROOT');
+  $data['root'] = array_key_exists('root', $data) ? $data['root'] : drush_get_context('DRUSH_DRUPAL_ROOT');
   $data['uri'] = array_key_exists('uri', $data) ? $data['uri'] : drush_get_context('DRUSH_URI');
 
   $option_str = _drush_backend_argument_string($data, $method);

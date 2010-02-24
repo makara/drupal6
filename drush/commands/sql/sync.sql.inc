@@ -1,5 +1,5 @@
 <?php
-// $Id: sync.sql.inc,v 1.13 2010/01/16 01:11:45 greg1anderson Exp $
+// $Id: sync.sql.inc,v 1.16 2010/02/23 18:10:36 greg1anderson Exp $
 
 require_once DRUSH_BASE_PATH . '/commands/core/rsync.inc';
 
@@ -55,12 +55,18 @@ function _drush_sql_sync($source, $destination, $show_warning = TRUE) {
     $source_db_url = _drush_sql_get_spec_from_options('source-');
     $source_remote_host = drush_get_option('source-remote-host');
     $source_remote_port = drush_get_option('source-remote-port');
-    $source_rsync_options = array();
+    // The host may have special ssh requirements
+    $source_remote_ssh_options = drush_get_option('source-ssh-options');
+    // rsync later will also have to know this option
+    $source_rsync_options = array('ssh-options' => $source_remote_ssh_options);
 
     $target_db_url = _drush_sql_get_spec_from_options('target-');
     $target_remote_host = drush_get_option('target-remote-host');
     $target_remote_port = drush_get_option('target-remote-port');
-    $target_rsync_options = array();
+    // The host may have special ssh requirements
+    $target_remote_ssh_options = drush_get_option('target-ssh-options');
+    // rsync later will also have to know this option
+    $target_rsync_options = array('ssh-options' => $target_remote_ssh_options);
 
     // Set up the result file and the remote file.
     // If the result file is not set, then create a temporary file.
@@ -114,27 +120,12 @@ function _drush_sql_sync($source, $destination, $show_warning = TRUE) {
       // and the normal confirmation below.
       if (array_key_exists('site-list', $destination_settings)) {
 
-        drush_print(dt('You are about to use the experimental MULTIPLE-TARGET drush sql-sync feature.'));
-        drush_print(dt('This code is new; please be careful (make backups), and use at your own risk!'));
-
         drush_print(dt('You are about to sync the database from !source, overwriting all of the following targets:', array('!source' => $source)));
         foreach ($destination_settings['site-list'] as $one_destination) {
           drush_print(dt('  !target', array('!target' => $one_destination)));
         }
 
-        // Temporary: ask what the user wants to do
-        // Once this code works, we'll replace this with a
-        // simple 'drush_confirm', so -y will work.
-        // You must manually confirm every time until this
-        // code is tested.  Help out at issue #628996
-        // if this is annoying to you.
-
-        $options['s'] = 'Run simulation first (add -s flag)';
-        $options['g'] = 'Go!';
-        $choice = drush_choice($options, 'Enter a number to choose which action to take.');
-
-        if ($choice === FALSE) {
-           // TODO:  When this is just drush_confirm, merge in with the code below.
+        if (drush_confirm('Continue? ') === FALSE) {
            drush_die('Aborting.');
         }
         if ($choice != 'g') {
@@ -148,7 +139,7 @@ function _drush_sql_sync($source, $destination, $show_warning = TRUE) {
         // Check to see if we are using a temporary file in a situation
         // where the user did not specify "--temp".
         if (($source_is_tmp || $target_is_tmp) && (!isset($use_temp_files)) && (isset($source_remote_host)  || isset($target_remote_host))) {
-          drush_print(dt('WARNING:  Using temporary files to store and transfer sql-dump.  It is recommended that you specify --source-dump and --target-dump options on the command line, or set \'!dump\' in the path-aliases section of your site alias records. This facilitates fast file transfer via rsync.'));
+          drush_print(dt('WARNING:  Using temporary files to store and transfer sql-dump.  It is recommended that you specify --source-dump and --target-dump options on the command line, or set \'%dump\' in the path-aliases section of your site alias records. This facilitates fast file transfer via rsync.'));
         }
 
         $txt_source = (isset($source_remote_host) ? $source_remote_host . '/' : '') . $source_db_url['database'];
@@ -195,7 +186,7 @@ function _drush_sql_sync($source, $destination, $show_warning = TRUE) {
     if (isset($cache)) {
       if (file_exists($local_file) && (filesize($local_file) > 0)) {
         if ((filemtime($local_file) - time()) < ($cache * 60 * 60)) {
-          drush_log(dt('Modification time of local dump file is less than !cache hours old.', array('!cache' => $cache)));
+          drush_log(dt('Modification time of local dump file is less than !cache hours old. Use the --no-cache option to force a refresh.', array('!cache' => $cache)));
           $no_dump = TRUE;
           $no_sync = TRUE;
         }
@@ -235,7 +226,7 @@ function _drush_sql_sync($source, $destination, $show_warning = TRUE) {
           // if the cache option is set.
           $dump_exec = 'if [ ! -s ' . $source_dump . '] || [ $((`date "+%s"`-`stat --format="%Y" ' . $source_dump . '`)) -gt ' . ($cache * 60 *  60) . ' ] ; then ' . $dump_exec . '; fi';
         }
-        $dump_exec = 'ssh ' . $source_remote_user . $source_at . $source_remote_host . ' ' . escapeshellarg($dump_exec);
+        $dump_exec = "ssh $source_remote_ssh_options $source_remote_user$source_at$source_remote_host ". escapeshellarg($dump_exec);
       }
     }
     else {
@@ -325,10 +316,10 @@ function _drush_sql_sync($source, $destination, $show_warning = TRUE) {
           $target_remote_pass = drush_get_option('target-remote-pass') ? ':' . drush_get_option('target-remote-pass') : '';
         }
 
-        drush_core_call_rsync($local_file, $target_remote_user . $target_at . $target_remote_host . ':' . $target_dump);
+        drush_core_call_rsync($local_file, $target_remote_user . $target_at . $target_remote_host . ':' . $target_dump, $target_rsync_options);
 
         $connect_exec = $pre_import_commands . $import_command . ' < ' . $target_dump;
-        $import_exec = 'ssh ' . $target_remote_user . $target_at . $target_remote_host . ' ' . escapeshellarg($connect_exec);
+        $import_exec = "ssh $target_remote_ssh_options $target_remote_user$target_at$target_remote_host  ". escapeshellarg($connect_exec);
         // delete the remote target file if it is a temporary file
         if ($target_is_tmp) {
           $import_exec .= '; rm -f ' . escapeshellarg($target_dump);

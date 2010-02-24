@@ -1,5 +1,5 @@
 <?php
-// $Id: site_install.drush.inc,v 1.1 2010/01/21 05:39:33 weitzman Exp $
+// $Id: site_install.drush.inc,v 1.2 2010/02/18 06:12:23 weitzman Exp $
 
 // Perform setup tasks for installation.
 function drush_core_pre_site_install() {
@@ -75,7 +75,8 @@ function drush_core_pre_site_install() {
 }
 
 function drush_core_site_install($profile = 'standard') {
-  require_once('install.php');
+  define('MAINTENANCE_MODE', 'install');
+  require_once DRUPAL_ROOT . '/includes/install.core.inc';
 
   $db_spec = drush_core_site_install_db_spec();
 

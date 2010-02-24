@@ -1,5 +1,5 @@
 <?php
-// $Id: pm.drush.inc,v 1.85 2010/01/25 16:13:01 weitzman Exp $
+// $Id: pm.drush.inc,v 1.90 2010/02/05 19:04:40 weitzman Exp $
 
 /**
  * @file
@@ -211,7 +211,7 @@ function drush_pm_list() {
     drush_set_error('DRUSH_PM_INVALID_PROJECT_TYPE', dt('!type is not a valid project type.', array('!type' => $type)));
     return drush_log(dt('Aborting.'));
   }
-  drush_log("pm-list loaded");  
+  drush_log("pm-list loaded");
   //--status
   $all_status = array('enabled', 'disabled', 'not installed');
   $status_filter = drush_get_option('status');
@@ -226,7 +226,7 @@ function drush_pm_list() {
     drush_set_error('DRUSH_PM_INVALID_PROJECT_TYPE', dt('!status is not a valid project status.', array('!status' => $status_filter)));
     return drush_log(dt('Aborting.'));
   }
-  
+
   $header[] = dt('Version');
   $rows[] = $header;
   $major_version = drush_drupal_major_version();
@@ -239,7 +239,7 @@ function drush_pm_list() {
       continue;
     }
     if (($major_version >= 6)||($project->type == 'module')) {
-      $row[] = $project->info['name'].' ('.$project->name.')';    
+      $row[] = $project->info['name'].' ('.$project->name.')';
     }
     else {
       $row[] = $project->name;
@@ -259,7 +259,7 @@ function drush_pm_list() {
     unset($row);
   }
   drush_print_table($rows, TRUE);
-  
+
   if (isset($pipe)) {
     // Space delimited list for use by other scripts. Set the --pipe option.
     drush_print_pipe(implode(' ', $pipe)."\n");
@@ -315,7 +315,7 @@ function drush_pm_enable() {
     $all_dependencies = array_unique($all_dependencies);
     $enabled = array_keys(array_filter(drush_get_modules(), 'pm_is_enabled'));
     $modules = array_unique(array_merge($modules, array_diff($all_dependencies, $enabled)));
-  
+
     // Discard modules which don't meet requirements.
     require_once drush_get_context('DRUSH_DRUPAL_ROOT') . '/includes/install.inc';
     foreach ($modules as $key => $module) {
@@ -327,7 +327,7 @@ function drush_pm_enable() {
       }
     }
   }
-  
+
   // Inform the user which projects will finally be enabled.
   $projects = array_merge($modules, $themes);
   if (empty($projects)) {
@@ -345,7 +345,7 @@ function drush_pm_enable() {
     drush_theme_enable($themes);
   }
 
-  // Disable modules and pass dependency validation in form submit.  
+  // Disable modules and pass dependency validation in form submit.
   if (!empty($modules)) {
     drush_module_enable($modules);
     $current = drupal_map_assoc($enabled, 'pm_true');
@@ -409,7 +409,7 @@ function drush_pm_disable() {
       drush_log(dt('!theme is the default theme and can\'t be disabled.', array('!theme' => $default_theme)), 'ok');
     }
   }
-  
+
   // Add enabled dependents to list of modules to disable.
   if (!empty($modules)) {
     $enabled = array_keys(array_filter(drush_get_modules(), 'pm_is_enabled'));
@@ -435,7 +435,7 @@ function drush_pm_disable() {
   if (!empty($themes)) {
     drush_theme_disable($themes);
   }
-  
+
   // Disable modules and pass dependency validation in form submit.
   if (!empty($modules)) {
     drush_module_disable($modules);
@@ -684,13 +684,16 @@ function pm_true() {
 
 /**
  * We need to set the project path by looking at the module location. Ideally, update.module would do this for us.
+ *
+ * TODO: Improve logic so this works even if your project directory is not
+ * named the same as the project name.
  */
 function pm_get_project_path($projects, $lookup) {
-  foreach ($projects as $project => $info) {
-    if (!isset($info['path'])  && $project != 'drupal') {
+  foreach ($projects as $name => $project) {
+    if (!isset($project['path'])  && $name != 'drupal') {
       // looks for an enabled module.
-      foreach ($info[$lookup] as $module => $name) {
-        if ($path = drupal_get_path('module', $module)) {
+      foreach ($project[$lookup] as $filename => $title) {
+        if ($path = drupal_get_path($project['project_type'], $filename)) {
           continue;
         }
       }
@@ -700,12 +703,12 @@ function pm_get_project_path($projects, $lookup) {
       // project's name.
       $parts = explode('/', $path);
       $i = count($parts) - 1;
-      $stop = array_search($project, $parts);
+      $stop = array_search($name, $parts);
       while ($i > $stop) {
         unset($parts[$i]);
         $i--;
       }
-      $projects[$project]['path'] = implode('/', $parts);
+      $projects[$name]['path'] = implode('/', $parts);
     }
   }
   return $projects;
@@ -1129,7 +1132,7 @@ function drush_pm_include_version_control($directory = '.') {
 }
 
 /**
- * Command callback. Download drupal core.
+ * Command callback. Download Drupal core or any project.
  */
 function drush_pm_download() {
   // Bootstrap to the highest level possible.
@@ -1169,7 +1172,7 @@ function drush_pm_download() {
       }
       else {
         // Try to get the specified release.
-        if ($request['version']) {
+        if (!empty($request['version'])) {
           $releases = $xml->xpath("/project/releases/release[status='published'][version='" . $request['version'] . "']");
           if (empty($releases)) {
             drush_log(dt("Could not locate specified project version, downloading latest stable version"), 'notice');
@@ -1177,9 +1180,14 @@ function drush_pm_download() {
         }
         // If that did not work, get the first published release for the recommended major version.
         if (empty($releases)) {
-          $recommended_major = $xml->xpath("/project/recommended_major");
-          $xpath_releases = "/project/releases/release[status='published'][version_major=" . (string)$recommended_major[0] . "]";
-          $releases = $xml->xpath($xpath_releases);
+          if ($recommended_major = $xml->xpath("/project/recommended_major")) {
+            $xpath_releases = "/project/releases/release[status='published'][version_major=" . (string)$recommended_major[0] . "]";
+            $releases = @$xml->xpath($xpath_releases);
+          }
+        }
+
+        if (empty($releases)) {
+          return drush_set_error(dt('There is no recommended release for project !project on Drupal !drupal_version. Ask the maintainer to create a release in order to be compatible with drush and the drupal.org security broadcast system. A development snapshot release is sufficient.', array('!drupal_version' => $request['drupal_version'], '!project' => $request['name'])));
         }
 
         // Profiles have 3 variants for a given real relase. Admin can specify using option.
@@ -1196,16 +1204,18 @@ function drush_pm_download() {
           $release['type'] = array_search($types[0]->value, $project_types);
         }
 
-        if ($destination = pm_dl_destination($release['type'])) {
-          if (!$version_control = drush_pm_include_version_control($destination)) {
+        // Create basic project array.
+        $project = $request;
+        if ($project['base_project_path'] = pm_dl_destination($release['type'])) {
+          $project['full_project_path'] = $project['base_project_path'] .  $request['name'];
+          $project['project_type'] = $release['type'];
+          if (!$version_control = drush_pm_include_version_control($project['base_project_path'])) {
             return FALSE;
           }
-          if (package_handler_install_project($request['name'], $release, $destination)) {
-            $release['full_project_path'] = $destination .  $request['name'];
-            drush_log(dt("Project !project (!version) downloaded to !dest.",
-                           array('!project' => $request['name'], '!version' => $release['version'], '!dest' => $destination)), 'success');
-            drush_command_invoke_all('drush_pm_post_download', $request['name'], $release, $destination);
-            $version_control->post_download($release);
+          if (package_handler_install_project($project, $release)) {
+            drush_log(dt("Project !project (!version) downloaded to !dest.", array('!project' => $request['name'], '!version' => $release['version'], '!dest' => $project['full_project_path'])), 'success');
+            drush_command_invoke_all('drush_pm_post_download', $project, $release);
+            $version_control->post_download($project);
           }
         }
       }

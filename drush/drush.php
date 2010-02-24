@@ -1,6 +1,6 @@
 #!/usr/bin/env php
 <?php
-// $Id: drush.php,v 1.82 2010/01/22 20:34:10 weitzman Exp $
+// $Id: drush.php,v 1.86 2010/02/21 05:33:28 weitzman Exp $
 
 /**
  * @file
@@ -8,7 +8,6 @@
  *
  * @requires PHP CLI 5.2.0, or newer.
  */
-
 // Terminate immediately unless invoked as a command line script
 if (!drush_verify_cli()) {
   die('drush.php is designed to run via the command line.');
@@ -90,7 +89,9 @@ function drush_main() {
           // Dispatch the command(s).
           $return = drush_dispatch($command);
 
-          drush_log_timers();
+          if (drush_get_context('DRUSH_DEBUG')) {
+            drush_print_timers();
+          }
           drush_log(dt('Peak memory usage was !peak', array('!peak' => drush_format_size(memory_get_peak_usage()))), 'memory');
           break;
         }
@@ -104,15 +105,14 @@ function drush_main() {
   if (!$command_found) {
     // If we reach this point, we have not found either a valid or matching command.
     $args = implode(' ', drush_get_arguments());
-    $drush_command = array_pop(explode('/', DRUSH_COMMAND));
     if (isset($command) && is_array($command)) {
       foreach ($command['bootstrap_errors'] as $key => $error) {
         drush_set_error($key, $error);
       }
-      drush_set_error('DRUSH_COMMAND_NOT_EXECUTABLE', dt("The command '!drush_command !args' could not be executed.", array('!drush_command' => $drush_command, '!args' => $args)));
+      drush_set_error('DRUSH_COMMAND_NOT_EXECUTABLE', dt("The drush command '!args' could not be executed.", array('!args' => $args)));
     }
     elseif (!empty($args)) {
-      drush_set_error('DRUSH_COMMAND_NOT_FOUND', dt("The command '!drush_command !args' could not be found.", array('!drush_command' => $drush_command, '!args' => $args)));
+      drush_set_error('DRUSH_COMMAND_NOT_FOUND', dt("The drush command '!args' could not be found.", array('!args' => $args)));
     }
     else {
       // This can occur if we get an error during _drush_bootstrap_drush_validate();

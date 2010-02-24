@@ -1,5 +1,5 @@
 <?php
-// $Id: environment_6.inc,v 1.4 2010/01/25 16:13:01 weitzman Exp $
+// $Id: environment_6.inc,v 1.7 2010/02/22 13:35:14 weitzman Exp $
 /**
  * @file
  *   Specific functions for a drupal 5 environment.
@@ -11,12 +11,22 @@
 /**
  * Get complete information for all available modules.
  *
+ * We need to set the type for those modules that are not already in the system table.
+ *
  * @return
- *   An array containing module info for all installed modules.
+ *   An array containing module info for all available modules.
  */
 function drush_get_modules() {
-  return module_rebuild_cache();
+  $modules = module_rebuild_cache();
+  foreach ($modules as $module) {
+    if (!isset($module->type)) {
+      $module->type = 'module';
+    }
+  }
+
+  return $modules;
 }
+
 
 /**
  * Return dependencies and its status for modules.
@@ -36,7 +46,7 @@ function drush_check_module_dependencies($modules, $module_info) {
     if (!empty($unmet_dependencies)) {
       $status[$key]['error'] = array(
           'code' => 'DRUSH_PM_ENABLE_DEPENDENCY_NOT_FOUND',
-          'message' => dt('Module !module cannot be enabled because it depends on the following modules which could not be found: !unmet_dependencies', array('!module' => $module, '!unmet_dependencies' => implode(',', $unmet_dependencies))) 
+          'message' => dt('Module !module cannot be enabled because it depends on the following modules which could not be found: !unmet_dependencies', array('!module' => $module, '!unmet_dependencies' => implode(',', $unmet_dependencies)))
       );
     }
     else {
@@ -68,12 +78,16 @@ function drush_module_dependents($modules, $module_info) {
 
 /**
  * Enable a list of modules. It is assumed the list contains all the dependencies not already enabled.
- * 
+ *
  * @param $modules
  *   Array of module names
  */
 function drush_module_enable($modules) {
-  module_enable($modules, FALSE);
+  // Try to install modules previous to enabling.
+  foreach ($modules as $module) {
+    _drupal_install_module($module);
+  }
+  module_enable($modules);
 }
 
 /**
@@ -102,12 +116,12 @@ function drush_module_uninstall($modules) {
 /**
  * Submit the system modules form.
  *
- * The modules should already be fully enabled/disabled before calling this 
+ * The modules should already be fully enabled/disabled before calling this
  * function. Calling this function just makes sure any activities triggered by
  * the form submit (such as admin_role) are completed.
  */
 function drush_system_modules_form_submit($active_modules) {
-  module_load_include('inc', 'system', 'system.admin'); 
+  module_load_include('inc', 'system', 'system.admin');
   $form_state = array('values' => array('status' => $active_modules));
   drupal_execute('system_modules', $form_state);
 }
@@ -115,16 +129,25 @@ function drush_system_modules_form_submit($active_modules) {
 /**
  * Get complete information for all available themes.
  *
+ * We need to set the type for those themes that are not already in the system table.
+ *
  * @return
  *   An array containing theme info for all available themes.
  */
 function drush_get_themes() {
-  return list_themes(TRUE);
+  $themes = system_theme_data();
+  foreach ($themes as $theme) {
+    if (!isset($theme->type)) {
+      $theme->type = 'theme';
+    }
+  }
+
+  return $themes;
 }
 
 /**
  * Enable a list of themes.
- * 
+ *
  * @param $themes
  *  Array of theme names.
  */
@@ -134,7 +157,7 @@ function drush_theme_enable($themes) {
 
 /**
  * Disable a list of themes.
- * 
+ *
  * @param $themes
  *  Array of theme names.
  */

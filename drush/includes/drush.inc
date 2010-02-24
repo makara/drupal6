@@ -1,5 +1,5 @@
 <?php
-// $Id: drush.inc,v 1.80 2010/01/21 15:01:53 adrian Exp $
+// $Id: drush.inc,v 1.91 2010/02/23 14:12:22 weitzman Exp $
 
 /**
  * @file
@@ -240,6 +240,146 @@ function drush_drupal_major_version() {
     }
   }
   return $major_version;
+}
+
+/**
+ * Replace named placeholders in a WHERE snippet. 
+ *
+ * Helper function to allow the usage of Drupal 7 WHERE snippets
+ * with named placeholders in code for Drupal 5 and 6.
+ *
+ * @param $where
+ *   Stringwith a WHERE snippet using named placeholders.
+ * @param $args
+ *   Array of placeholder values.
+ * @return
+ *   String. $where filled with literals from $args.
+ */
+function _drush_replace_query_placeholders($where, $args) {
+  foreach ($args as $key => $data) {
+    if (!is_numeric($data)) {
+      $args[$key] = '"'.$data.'"';
+    }
+    else if (is_array($data)) {
+      $new_keys = array();
+      foreach ($data as $i => $value) {
+        $new_keys[$key . '_' . $i] = $value;
+      }
+      $where = preg_replace('#' . $key . '\b#', implode(', ', array_keys($new_keys)), $query);
+      unset($args[$key]);
+      $args += $new_keys;
+    }
+  }
+
+  foreach ($args as $key => $data) {
+    $where = str_replace($key, $data, $where);
+  }
+
+  return $where;
+}
+
+/**
+ * A db_select() that works for any version of Drupal.
+ *
+ * @param $table
+ *   String. The table to operate on.
+ * @param $fields
+ *   Array or string. Fields affected in this operation. Valid string values are '*' or a single column name.
+ * @param $where
+ *   String. WHERE snippet for the operation. It uses named placeholders. see @_drush_replace_query_placeholders()
+ * @param $args
+ *   Array. Arguments for the WHERE snippet.
+ * @param $start
+ *   Int. Value for OFFSET.
+ * @param $length
+ *   Int. Value for LIMIT.
+ * @param $order_by_field
+ *   String. Database column to order by.
+ * @param $order_by_direction
+ *   ('ASC', 'DESC'). Ordering direction.
+ * @return
+ *   A database resource.
+ */
+function drush_db_select($table, $fields = '*', $where = NULL, $args = NULL, $start = NULL, $length = NULL, $order_by_field = NULL, $order_by_direction = 'ASC') {
+  if (drush_drupal_major_version() >= 7) {
+    if (!is_array($fields)) {
+      if ($fields == '*') {
+        $fields = array();
+      }
+      else {
+        $fields = array($fields);
+      }
+    }
+    $query = db_select($table, $table)
+      ->fields($table, $fields);
+    if (!empty($where)) {
+      $query = $query->where($where, $args);
+    }
+    if (!is_null($order_by_field)) {
+      $query = $query->orderBy($order_by_field, $order_by_direction);
+    }
+    if (!is_null($length)) {
+      $query = $query->range($start, $length);
+    }
+    return $query->execute();
+  }
+  else {
+    if (is_array($fields)) {
+      $fields = implode('","', $fields);
+    }
+    $query = "SELECT $fields FROM {$table}";
+    if (!empty($where)) {
+      $where = _drush_replace_query_placeholders($where, $args);
+      $query .= " WHERE ".$where;
+    }
+    if (!is_null($order_by_field)) {
+      $query .= " ORDER BY $order_by_field $order_by_direction";
+    }
+    if (!is_null($length)) {
+      $limit = " LIMIT $length";
+      if (!is_null($start)) {
+        $limit .= " OFFSET $start";
+      }
+      $query .= $limit;
+    }
+
+    return db_query($query, $args);
+  }
+}
+
+/**
+ * A db_delete() that works for any version of Drupal.
+ *
+ * @param $table
+ *   String. The table to operate on.
+ * @param $where
+ *   String. WHERE snippet for the operation. It uses named placeholders. see @_drush_replace_query_placeholders()
+ * @param $args
+ *   Array. Arguments for the WHERE snippet.
+ * @return
+ *   Affected rows or FALSE.
+ */
+function drush_db_delete($table, $where = NULL, $args = NULL) {
+  if (drush_drupal_major_version() >= 7) {
+    if (!empty($where)) {
+      $query = db_delete($table)->where($where, $args);
+      return $query->execute();
+    }
+    else {
+      return db_truncate($table)->execute();
+    }
+  }
+  else {
+    $query = "DELETE FROM {$table}";
+    if (!empty($where)) {
+      $where = _drush_replace_query_placeholders($where, $args);
+      $query .= ' WHERE '.$where;
+    }
+    if (!db_query($query, $args)) {
+      return FALSE;
+    }
+    return db_affected_rows();
+  }
 }
 
 /**
@@ -577,7 +717,7 @@ function drush_confirm($msg, $indent = 0) {
  * Ask the user to select an item from a list.
  * From a provided associative array, drush_choice will
  * display all of the questions, numbered from 1 to N,
- * and return the item the user selected.  "0" is always
+ * and return the item the user selected. "0" is always
  * cancel; entering a blank line is also interpreted
  * as cancelling.
  *
@@ -585,7 +725,9 @@ function drush_confirm($msg, $indent = 0) {
  *   A list of questions to display to the user.  The
  *   KEYS of the array are the result codes to return to the
  *   caller; the VALUES are the messages to display on
- *   each line.
+ *   each line. Special keys of the form '-- something --' can be 
+ *   provided as separator between choices groups. Separator keys 
+ *    don't alter the numbering.
  * @param $prompt
  *   The message to display to the user prompting for input.
  * @param $label
@@ -600,12 +742,16 @@ function drush_confirm($msg, $indent = 0) {
 function drush_choice($options, $prompt = 'Enter a number.', $label = '!value') {
   print dt($prompt) . "\n";
 
-  drush_print('[0] : Cancel');
+  drush_print('  [0] : Cancel');
   $selection_number = 0;
   foreach ($options as $key => $option) {
+    if ((substr($key, 0, 3) == '-- ') && (substr($key, -3) == ' --')) {
+      drush_print("  ".$option);
+      continue;
+    }
     $selection_number++;
     $message = dt($label, array('!number' => $selection_number, '!key' => $key, '!value' => $option));
-    drush_print(dt("[!number] : !message", array('!number' => $selection_number, '!message' => $message)));
+    drush_print(dt("  [!number] : !message", array('!number' => $selection_number, '!message' => $message)));
     $selection_list[$selection_number] = $key;
   }
 
@@ -794,49 +940,22 @@ function drush_remote_command() {
       $site_list = explode(',', $site_list);
     }
     $args = drush_get_arguments();
-    
+
     if (!drush_get_context('DRUSH_SIMULATE')) {
-      drush_print(dt('You are about to use the experimental MULTIPLE-TARGET drush command feature.'));
-      drush_print(dt('This code is new; please be careful (make backups), and use at your own risk!'));
-      
       drush_print(dt("You are about to execute '!command' on all of the following targets:", array('!command' => implode(" ", $args))));
       foreach ($site_list as $one_destination) {
         drush_print(dt('  !target', array('!target' => $one_destination)));
       }
-      
-      // Temporary: ask what the user wants to do
-      // Once this code works, we'll replace this with a
-      // simple 'drush_confirm', so -y will work.
-      // You must manually confirm every time until this
-      // code is tested.  Help out at issue #628996
-      // if this is annoying to you.
-      
-      $options['s'] = 'Run simulation first (add -s flag)  WARNING: ignored by some commands!';
-      $options['g'] = 'Go!';
-      $choice = drush_choice($options, 'Enter a number to choose which action to take.');
-      
-      if ($choice === FALSE) {
+
+      if (drush_confirm('Continue? ') === FALSE) {
          drush_die('Aborting.');
-      }
-      if ($choice != 'g') {
-        drush_set_option('s', TRUE, 'options');
-        drush_set_context('DRUSH_SIMULATE', TRUE);
       }
     }
     $command = array_shift($args);
 
     foreach ($site_list as $site_spec) {
-      $site_record = _drush_sitealias_get_record($site_spec);
-      if (!empty($site_record)) {
-        // Pass only the root and uri parameters from the site alias;
-        // put them in the 'options' context where they are sure to
-        // be picked up by the command redispatch helper.
-        drush_set_option('root', $site_record['root'], 'options');
-        drush_set_option('uri', $site_record['uri'], 'options');
-        drush_unset_option('r');
-        drush_unset_option('l');
-        drush_do_command_redispatch($command, $args, $site_record['remote-host'], $site_record['remote-user']);
-      }
+      $values = drush_do_site_command(_drush_sitealias_get_record($site_spec), $command, $args);
+      drush_print($values['output']);
     }
     return TRUE;
   }
@@ -850,12 +969,12 @@ function drush_remote_command() {
  */
 function drush_do_multiple_command($command, $source_record, $destination_record, $allow_single_source = FALSE) {
   $is_multiple_command = FALSE;
-  
+
   if ((($allow_single_source == TRUE) || array_key_exists('site-list', $source_record)) && array_key_exists('site-list', $destination_record)) {
     $is_multiple_command = TRUE;
     $source_path = array_key_exists('path-component', $source_record) ? $source_record['path-component'] : '';
     $destination_path = array_key_exists('path-component', $destination_record) ? $destination_record['path-component'] : '';
-    
+
     $target_list = drush_sitealias_resolve_sitelist($destination_record);
     if (array_key_exists('site-list', $source_record)) {
       $source_list = drush_sitealias_resolve_sitelist($source_record);
@@ -871,15 +990,12 @@ function drush_do_multiple_command($command, $source_record, $destination_record
     else {
       $source_list = array_fill(0, count($target_list), $source_record);
     }
-    
+
     drush_print($source_path);
     drush_print($destination_path);
-    
-    if (!drush_get_context('DRUSH_SIMULATE')) {
-      drush_print(dt('You are about to use the experimental MULTIPLE-SYNCHRONIZED-TARGET drush !command feature.', array('!command' => $command)));
-      drush_print(dt('This code is new; please be careful (make backups), and use at your own risk!'));
 
-      drush_print(dt('You are about to rsync between all of the following targets:'));
+    if (!drush_get_context('DRUSH_SIMULATE')) {
+      drush_print(dt('You are about to !command between all of the following targets:', array('!command' => $command)));
       $i = 0;
       foreach ($source_list as $one_source) {
         $one_target = $target_list[$i];
@@ -887,64 +1003,71 @@ function drush_do_multiple_command($command, $source_record, $destination_record
         drush_print(dt('  !source will overwrite !target', array('!source' => drush_sitealias_alias_record_to_spec($one_source) . $source_path, '!target' => drush_sitealias_alias_record_to_spec($one_target) . $destination_path)));
       }
 
-      // Temporary: ask what the user wants to do
-      // Once this code works, we'll replace this with a
-      // simple 'drush_confirm', so -y will work.
-      // You must manually confirm every time until this
-      // code is tested.  Help out at issue #628996
-      // if this is annoying to you.
-
-      $options['s'] = 'Run simulation first (add -s flag)';
-      $options['g'] = 'Go!';
-      $choice = drush_choice($options, 'Enter a number to choose which action to take.');
-
-      if ($choice === FALSE) {
+      if (drush_confirm('Continue? ') === FALSE) {
          drush_die('Aborting.');
       }
-      if ($choice != 'g') {
-        drush_set_option('s', TRUE, 'options');
-        drush_set_context('DRUSH_SIMULATE', TRUE);
-      }
     }
-    
+
     $data = drush_redispatch_get_options();
     $i = 0;
     foreach ($source_list as $one_source) {
       $one_target = $target_list[$i];
       ++$i;
-      
+
       $source_spec = drush_sitealias_alias_record_to_spec($one_source);
       $target_spec = drush_sitealias_alias_record_to_spec($one_target);
-      
+
       drush_log(dt('Begin do_multiple !command via backend invoke', array('!command' => $command)));
       $values = drush_backend_invoke_args($command, array($source_spec . $source_path, $target_spec . $destination_path), $data, 'GET', TRUE);
       drush_log(dt('Backend invoke is complete'));
     }
   }
-  
+
   return $is_multiple_command;
+}
+
+function drush_do_site_command($site_record, $command, $args = array(), $data = array()) {
+  $values = NULL;
+  if (!empty($site_record)) {
+    // Pass the root and uri parameters from the site alias
+    $data['root'] = $site_record['root'];
+    $data['uri'] = $site_record['uri'];
+
+    $drush_path = NULL;
+    if (array_key_exists('path-aliases', $site_record) && !array_key_exists('remote-host', $site_record)) {
+      if (array_key_exists('%drush-script', $site_record['path-aliases'])) {
+        $drush_path = $site_record['path-aliases']['%drush-script'];
+      }
+    }
+
+    $values = drush_backend_invoke_args($command, $args, $data, 'GET', FALSE, $drush_path, array_key_exists('remote-host', $site_record) ? $site_record['remote-host'] : NULL, array_key_exists('remote-user', $site_record) ? $site_record['remote-user'] : NULL);
+  }
+  return $values;
 }
 
 /**
  * Redispatch the specified command using the same
  * options that were passed to this invocation of drush.
  */
-function drush_do_command_redispatch($command, $args, $remote_host = NULL, $remote_user = NULL) {
+function drush_do_command_redispatch($command, $args = array(), $remote_host = NULL, $remote_user = NULL, $drush_path = NULL) {
   $data = drush_redispatch_get_options();
 
   // If the path to drush was supplied, then pass it to backend invoke.
-  // (Perhaps this should be added to the default handling of backend invoke.)
-  $drush_path = drush_get_option('drush-script');
-  if (!isset($drush_path)) {
-    $drush_folder = drush_get_option('drush');
-    if (isset($drush)) {
-      $drush_path = $drush_folder . '/drush';
+  if ($drush_path == NULL) {
+    $drush_path = drush_get_option('drush-script');
+    if (!isset($drush_path)) {
+      $drush_folder = drush_get_option('drush');
+      if (isset($drush)) {
+        $drush_path = $drush_folder . '/drush';
+      }
     }
   }
   // Call through to backend invoke.
   drush_log(dt('Begin redispatch via backend invoke'));
   $values = drush_backend_invoke_args($command, $args, $data, 'GET', TRUE, $drush_path, $remote_host, $remote_user);
   drush_log(dt('Backend invoke is complete'));
+
+  return $values;
 }
 
 /**
@@ -971,6 +1094,10 @@ function drush_redispatch_get_options() {
       }
     }
   }
+  // 'php', if needed, will be included in DRUSH_COMMAND.  If DRUSH_COMMAND
+  // is not used (e.g. when calling a remote instance of drush), then --php
+  // should not be passed along.
+  unset($options['php']);
   return $options;
 }
 
@@ -1138,15 +1265,40 @@ function _drush_print_log($entry) {
   return $return;
 }
 
-// Log all timers for the request.
-// Useful for migrate commands. Lets see if others find it useful.
-// Called at end of request. @see drush.php
-function drush_log_timers() {
+// Print all timers for the request.
+function drush_print_timers() {
   global $timers;
+  $temparray = array();
   foreach ((array)$timers as $name => $timerec) {
-    drush_log("Timer '$name' is  "  . sprintf('%s sec.', round(timer_read($name)/1000, 2)), 'timer');
+    // We have to use timer_read() for active timers, and check the record for others
+    if (isset($timerec['start'])) {
+      $temparray[$name] = timer_read($name);
+    }
+    else {
+      $temparray[$name] = $timerec['time'];
+    }
+  }
+  // Go no farther if there were no timers
+  if (count($temparray) > 0) {
+    // Put the highest cumulative times first
+    arsort($temparray);
+    $table = array();
+    $table[] = array('Timer', 'Cum (sec)', 'Count', 'Avg (msec)');
+    foreach ($temparray as $name => $time) {
+      $cum = round($time/1000, 3);
+      $count = $timers[$name]['count'];
+      if ($count > 0) {
+        $avg = round($time/$count, 3);
+      }
+      else {
+        $avg = 'N/A';
+      }
+      $table[] = array($name, $cum, $count, $avg);
+    }
+    drush_print_table($table, TRUE);
   }
 }
+
 /**
 * Turn drupal_set_message errors into drush_log errors
 */
@@ -1230,43 +1382,32 @@ function drush_format_size($size, $langcode = NULL) {
  * A sneaky implementation of hook_watchdog().
  */
 function system_watchdog($log_entry) {
-  $levels = drush_watchdog_severity_levels();
-  drush_log('WD '. $log_entry['type'] . ': ' . drush_watchdog_format_message((object)$log_entry), $levels[$log_entry['severity']]);
-}
-
-/**
- * Copy of watchdog_severity_levels() without t() and tuned for _drush_print_log.
- *
- * Severity levels, as defined in RFC 3164: http://www.ietf.org/rfc/rfc3164.txt.
- *
- * @return
- *   Array of the possible severity levels for log messages.
- *
- * @see watchdog()
- */
-function drush_watchdog_severity_levels() {
-  return array(
-    WATCHDOG_EMERG    => 'error', // emergency
-    WATCHDOG_ALERT    => 'error', // alert
-    WATCHDOG_CRITICAL => 'error', // critical
-    WATCHDOG_ERROR    => 'error',
-    WATCHDOG_WARNING  => 'warning',
-    WATCHDOG_NOTICE   => 'notice',
-    WATCHDOG_INFO     => 'info',
-    WATCHDOG_DEBUG    => 'debug',
+  static $errors = array(
+    WATCHDOG_EMERG, 
+    WATCHDOG_ALERT, 
+    WATCHDOG_CRITICAL,
+    WATCHDOG_ERROR
   );
-}
 
-function drush_watchdog_format_message($watchdog) {
-  if (drush_drupal_major_version() == 5) {
-    $message = $watchdog->message;
+  // Transform non informative severity levels to 'error' for compatibility with _drush_print_log.
+  // Other severity levels are coincident with the ones we use in drush.  
+  if (in_array($log_entry['severity'], $errors)) {
+    $severity = 'error';
   }
   else {
-    // variables is an array during logging but is a string when retrieving from DB.
-    $variables = is_string($watchdog->variables) ? unserialize($watchdog->variables) : $watchdog->variables;
-    $message = is_array($variables) ? strtr($watchdog->message, $variables) : $watchdog->message;
+    $levels = core_watchdog_severity_levels();
+    $severity = $levels[$log_entry['severity']];
   }
-  return decode_entities($message);
+  // Format the message.
+  if (is_array($log_entry['variables'])) {
+    $message = strtr($log_entry['message'], $log_entry['variables']);
+  }
+  else {
+    $message = $log_entry['message'];
+  }
+  $message = strip_tags(decode_entities($message));
+  // Log it.
+  drush_log('WD '. $log_entry['type'] . ': '.$message, $severity);
 }
 
 /**
@@ -1441,4 +1582,3 @@ function drush_memory_limit() {
 
   return $value;
 }
-

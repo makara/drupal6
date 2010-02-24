@@ -1,5 +1,5 @@
 <?php
-// $Id: environment.inc,v 1.71 2010/01/25 16:13:01 weitzman Exp $
+// $Id: environment.inc,v 1.77 2010/02/22 04:03:17 weitzman Exp $
 
 /**
  * @file
@@ -299,7 +299,7 @@ function drush_error_handler($errno, $message, $filename, $line, $context) {
       $type = 'warning';
     }
 
-    drush_log($message, $type);
+    drush_log($message . ' ' . basename($filename) . ':' . $line, $type);
 
     return TRUE;
   }
@@ -331,18 +331,29 @@ function _drush_bootstrap_drush_validate() {
     return drush_bootstrap_error('DRUSH_SAFE_MODE', dt('PHP safe mode is activated. Drush requires that safe mode is disabled.'));
   }
 
-  // Attempt to download Console Table, via various methods.
-  $tablefile = DRUSH_BASE_PATH . '/includes/table.inc';
-  if (!file_exists($tablefile)) {
-    if ($file = @file_get_contents(DRUSH_TABLE_URL)) {
-      @file_put_contents($tablefile, $file);
-    }
+  // try using the PEAR installed version of Console_Table
+  $tablefile = 'Console/Table.php';
+  if (@file_get_contents($tablefile, FILE_USE_INCLUDE_PATH) === FALSE) {
+    $tablefile = DRUSH_BASE_PATH . '/includes/table.inc';
+
+    // Attempt to download Console Table, via various methods.
     if (!file_exists($tablefile)) {
-      drush_shell_exec("wget -q --timeout=30 -O $tablefile " . DRUSH_TABLE_URL);
+      $targetpath = dirname($tablefile);
+      // not point continuing if we can't write to the target path
+      if (!is_writable($targetpath)) {
+        return drush_bootstrap_error('DRUSH_TABLES_INC', dt("Drush needs a copy of the PEAR Console_Table library in order to function, and the attempt to download this file automatically failed because you do not have permission to write files in !path. To continue you will need to download the !version package from http://pear.php.net/package/Console_Table, extract it, and copy the Table.php file into Drush's directory as !tablefile.", array('!path' => $targetpath, '!version' => DRUSH_TABLE_VERSION ,'!tablefile' => $tablefile)));
+      }
+
+      if ($file = @file_get_contents(DRUSH_TABLE_URL)) {
+        @file_put_contents($tablefile, $file);
+      }
       if (!file_exists($tablefile)) {
-        drush_shell_exec("curl -s  --connect-timeout 30 -o $tablefile " . DRUSH_TABLE_URL);
+        drush_shell_exec("wget -q --timeout=30 -O $tablefile " . DRUSH_TABLE_URL);
         if (!file_exists($tablefile)) {
-          return drush_bootstrap_error('DRUSH_TABLES_INC', dt("Drush needs a copy of the PEAR Console_Table library in order to function, and the attempt to download this file automatically failed. To continue you will need to download the !version package from http://pear.php.net/package/Console_Table, extract it, and copy the Table.php file into Drush's directory as !tablefile.", array('!version' => DRUSH_TABLE_VERSION ,'!tablefile' => $tablefile)));
+          drush_shell_exec("curl -s  --connect-timeout 30 -o $tablefile " . DRUSH_TABLE_URL);
+          if (!file_exists($tablefile)) {
+            return drush_bootstrap_error('DRUSH_TABLES_INC', dt("Drush needs a copy of the PEAR Console_Table library in order to function, and the attempt to download this file automatically failed. To continue you will need to download the !version package from http://pear.php.net/package/Console_Table, extract it, and copy the Table.php file into Drush's directory as !tablefile.", array('!version' => DRUSH_TABLE_VERSION ,'!tablefile' => $tablefile)));
+          }
         }
       }
     }
@@ -392,10 +403,10 @@ function _drush_bootstrap_drush() {
 
   // statically define a way to call drush again
   define('DRUSH_COMMAND', drush_find_drush());
-  
+
   $drush_info = drush_read_drush_info();
   define('DRUSH_VERSION', $drush_info['version']);
-  
+
   // Load a drushrc.php file in the drush.php's directory.
   drush_load_config('drush');
 
@@ -727,6 +738,8 @@ function _drush_bootstrap_drupal_full() {
   ob_start();
   drupal_bootstrap(DRUPAL_BOOTSTRAP_FULL);
   ob_end_clean();
+  // Poke Drupal with a cluestick so it recognizes our system_watchdog() implementation.
+  module_implements('watchdog', FALSE, TRUE);
   _drush_log_drupal_messages();
   // Find any command files that are available during this bootstrap phase.
   _drush_find_commandfiles(DRUSH_BOOTSTRAP_DRUPAL_FULL);
@@ -968,8 +981,9 @@ function drush_valid_db_credentials() {
  * @see DRUSH_COMMAND
  */
 function drush_find_drush() {
- if (drush_get_option(array('php'))) {
-    $drush = drush_get_option(array('php')) . " " . realpath($_SERVER['argv'][0]);
+ $php = drush_get_option('php');
+ if (isset($php)) {
+    $drush = $php . " " . realpath($_SERVER['argv'][0]) . " --php=$php";
   } else {
     $drush = realpath($_SERVER['argv']['0']);
   }
@@ -981,7 +995,7 @@ function drush_find_drush() {
  */
 function drush_read_drush_info() {
   $drush_info_file = dirname(__FILE__) . '/../drush.info';
-  
+
   return parse_ini_file($drush_info_file);
 }
 
@@ -1019,7 +1033,7 @@ function drush_get_projects() {
  * @param $project
  *   Array of a single project info.
  *
- * @return 
+ * @return
  *   String describing project status. Values: enabled|disabled|not installed
  */
 function drush_get_project_status($project) {
@@ -1035,7 +1049,7 @@ function drush_get_project_status($project) {
 
 /**
  * Return the default theme.
- * 
+ *
  * @return
  *  Machine name of the default theme.
  */
@@ -1045,7 +1059,7 @@ function drush_theme_get_default() {
 
 /**
  * Return the administration theme.
- * 
+ *
  * @return
  *  Machine name of the administration theme.
  */
@@ -1053,3 +1067,19 @@ function drush_theme_get_admin() {
   return variable_get('admin_theme', drush_theme_get_default());
 }
 
+/**
+ * Return the user's home directory.
+ */
+
+function drush_server_home() {
+  $home = NULL;
+  // $_SERVER['HOME'] isn't set on windows and generates a Notice.
+  if (!empty($_SERVER['HOME'])) {
+    $home = $_SERVER['HOME'];
+  }
+  elseif (!empty($_SERVER['HOMEDRIVE']) && !empty($_SERVER['HOMEPATH'])) {
+    // home on windows
+    $home = $_SERVER['HOMEDRIVE'] . $_SERVER['HOMEPATH'];
+  }
+  return $home;
+}
