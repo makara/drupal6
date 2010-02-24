@@ -1,4 +1,4 @@
-// $Id: context_reaction_block.js,v 1.1.2.13 2010/01/20 18:34:49 yhahn Exp $
+// $Id: context_reaction_block.js,v 1.1.2.15 2010/02/23 15:15:42 yhahn Exp $
 
 Drupal.behaviors.contextReactionBlock = function(context) {
   $('form.context-editor:not(.context-block-processed)')
@@ -236,11 +236,13 @@ function DrupalContextBlockEditor(editor) {
       var region = $(this).attr('id').split('context-block-region-')[1];
       var blocks = [];
       $('div.context-block', $(this)).each(function() {
-        var bid = $(this).attr('id').split('context-block-')[1];
-        var context = $(this).attr('class').split('edit-')[1].split(' ')[0];
-        context = context ? context : 0;
-        var block = {'bid': bid, 'context': context};
-        blocks.push(block);
+        if ($(this).attr('class').indexOf('edit-') != -1) {
+          var bid = $(this).attr('id').split('context-block-')[1];
+          var context = $(this).attr('class').split('edit-')[1].split(' ')[0];
+          context = context ? context : 0;
+          var block = {'bid': bid, 'context': context};
+          blocks.push(block);
+        }
       });
       Drupal.contextBlockEditor.state[region] = blocks;
     });
@@ -254,13 +256,13 @@ function DrupalContextBlockEditor(editor) {
    */
   this.disableTextSelect = function() {
     if ($.browser.safari) {
-      $('*').css('WebkitUserSelect','none');
+      $('div.context-block:not(:has(input,textarea))').css('WebkitUserSelect','none');
     }
     else if ($.browser.mozilla) {
-      $('*').css('MozUserSelect','none');
+      $('div.context-block:not(:has(input,textarea))').css('MozUserSelect','none');
     }
     else if ($.browser.msie) {
-      $('*').bind('selectstart.contextBlockEditor', function() { return false; });
+      $('div.context-block:not(:has(input,textarea))').bind('selectstart.contextBlockEditor', function() { return false; });
     }
     else {
       $(this).bind('mousedown.contextBlockEditor', function() { return false; });

@@ -1,5 +1,5 @@
 <?php
-// $Id: context.core.inc,v 1.1.2.3.2.20.2.13 2010/02/09 18:04:59 yhahn Exp $
+// $Id: context.core.inc,v 1.1.2.3.2.20.2.14 2010/02/19 18:37:37 yhahn Exp $
 
 /**
  * Implementation of hook_context_registry().
@@ -158,7 +158,8 @@ function context_theme_registry_alter(&$theme_registry) {
   // context-sensitive menus and variables. Ensure that
   // context_preprocess_page() comes immediately after
   // template_preprocess_page().
-  if ($position = array_search('context_preprocess_page', $theme_registry['page']['preprocess functions'])) {
+  $position = array_search('context_preprocess_page', $theme_registry['page']['preprocess functions']);
+  if ($position !== FALSE) {
     unset($theme_registry['page']['preprocess functions'][$position]);
   }
   $position = array_search('template_preprocess_page', $theme_registry['page']['preprocess functions']);
