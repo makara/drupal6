@@ -1,5 +1,10 @@
-// $Id: boxes.js,v 1.1 2010/02/02 00:46:04 jmiccolis Exp $
+// $Id: boxes.js,v 1.2 2010/02/19 19:21:52 yhahn Exp $
 Drupal.behaviors.boxes = function(context) {
+  // Unwrap the AHAH call contents as ahah.js replaces the *contents* of the
+  // wrapper, not the wrapper itself.
+  if ($(context).is('div') && $('div.block-boxes', context).size() > 0) {
+    $(context).replaceWith($('div.block-boxes', context).children());
+  }
   $('div.boxes-box-controls a:not(.boxes-processed)')
     .addClass('boxes-processed')
     .click(function() {
