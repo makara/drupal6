@@ -14,7 +14,7 @@ regions[content] = "Content"
 
 ; Information added by fserver
 core = "6.x"
-datestamp = "1266441178"
+datestamp = "1267043221"
 project = "rubik"
 project status url = "http://code.developmentseed.org/fserver"
-version = "6.x-1.0-beta6"
+version = "6.x-1.0-beta7"
