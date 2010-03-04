@@ -1,12 +1,12 @@
 <?php
-// $Id: context_condition_user.inc,v 1.1.2.3 2010/02/09 18:04:59 yhahn Exp $
+// $Id: context_condition_user.inc,v 1.1.2.4 2010/03/02 18:31:18 yhahn Exp $
 
 /**
  * Expose current user role as a context condition.
  */
 class context_condition_user extends context_condition {
   function condition_values() {
-    return drupal_map_assoc(user_roles(TRUE));
+    return drupal_map_assoc(user_roles());
   }
 
   function execute($account) {

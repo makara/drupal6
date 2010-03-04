@@ -1,5 +1,5 @@
 <?php
-// $Id: context.module,v 1.6.2.6.2.6.2.11 2010/02/10 18:38:39 jmiccolis Exp $
+// $Id: context.module,v 1.6.2.6.2.6.2.13 2010/03/03 00:57:19 yhahn Exp $
 
 require('context.core.inc');
 
@@ -137,6 +137,16 @@ function context_ctools_plugin_api($module, $api) {
   if ($module == 'context' && $api == 'plugins') {
     return array('version' => 3);
   }
+}
+
+/**
+ * Implementation of hook_ctools_plugin_plugins().
+ */
+function context_ctools_plugin_plugins() {
+  return array(
+    'cache' => TRUE,
+    'use hooks' => TRUE,
+  );
 }
 
 /**
@@ -373,14 +383,15 @@ function context_condition_map($reset = FALSE) {
     }
     else {
       foreach (array_keys(context_conditions('condition')) as $condition) {
-        $plugin = context_get_plugin('condition', $condition);
-        foreach (context_enabled_contexts() as $context) {
-          $values = $plugin->fetch_from_context($context, 'values');
-          foreach ($values as $value) {
-            if (!isset($condition_map[$condition][$value])) {
-              $condition_map[$condition][$value] = array();
+        if ($plugin = context_get_plugin('condition', $condition)) {
+          foreach (context_enabled_contexts() as $context) {
+            $values = $plugin->fetch_from_context($context, 'values');
+            foreach ($values as $value) {
+              if (!isset($condition_map[$condition][$value])) {
+                $condition_map[$condition][$value] = array();
+              }
+              $condition_map[$condition][$value][] = $context->name;
             }
-            $condition_map[$condition][$value][] = $context->name;
           }
         }
       }

@@ -1,5 +1,5 @@
 <?php
-// $Id: context.core.inc,v 1.1.2.3.2.20.2.14 2010/02/19 18:37:37 yhahn Exp $
+// $Id: context.core.inc,v 1.1.2.3.2.20.2.16 2010/03/03 19:57:47 yhahn Exp $
 
 /**
  * Implementation of hook_context_registry().
@@ -8,7 +8,7 @@ function context_context_registry() {
   $registry = array();
   $registry['conditions'] = array(
     'node' => array(
-      'title' => t('Node'),
+      'title' => t('Node type'),
       'description' => t('Set this context when viewing a node page or using the add/edit form of one of these content types.'),
       'plugin' => 'context_condition_node',
     ),
@@ -23,7 +23,7 @@ function context_context_registry() {
       'plugin' => 'context_condition_path',
     ),
     'user' => array(
-      'title' => t('User'),
+      'title' => t('User role'),
       'description' => t('Set this context when the current user has one of the selected role(s).'),
       'plugin' => 'context_condition_user',
     ),
@@ -202,8 +202,11 @@ function context_ctools_render_alter($info, $page, $args, $contexts, $task, $sub
  * Implementation of hook_nodeapi().
  */
 function context_nodeapi(&$node, $op, $teaser, $page) {
-  if ($op == 'view' && $page && menu_get_object() === $node) {
-    context_node_condition($node, 'view');
+  if ($op == 'view' && $page) {
+    $object = menu_get_object();
+    if (isset($object->nid) && $object->nid === $node->nid) {
+      context_node_condition($node, 'view');
+    }
   }
 }
 

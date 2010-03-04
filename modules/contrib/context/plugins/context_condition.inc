@@ -1,5 +1,5 @@
 <?php
-// $Id: context_condition.inc,v 1.1.2.2 2010/02/09 04:38:01 yhahn Exp $
+// $Id: context_condition.inc,v 1.1.2.3 2010/03/03 19:42:06 yhahn Exp $
 
 /**
  * Base class for a context condition.
@@ -43,6 +43,8 @@ class context_condition {
    * Condition form submit handler.
    */
   function condition_form_submit($values) {
+    ksort($values);
+
     // Editor forms are generally checkboxes -- do some checkbox processing.
     return drupal_map_assoc(array_keys(array_filter($values)));
   }
@@ -85,6 +87,12 @@ class context_condition {
    * Context editor form submit handler.
    */
   function editor_form_submit(&$context, $values) {
+    // Merge existing values in from non-active conditions.
+    $existing = $this->fetch_from_context($context, 'values');
+    $values += !empty($existing) ? $existing : array();
+
+    ksort($values);
+
     // Editor forms are generally checkboxes -- do some checkbox processing.
     return drupal_map_assoc(array_keys(array_filter($values)));
   }
