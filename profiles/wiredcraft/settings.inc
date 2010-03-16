@@ -56,7 +56,7 @@ function _profile_settings_modules_extra() {
  * Enable these themes.
  */
 function _profile_settings_themes() {
-  return array('garland', 'rubik', 'cube', 'ninesixty');
+  return array('garland', 'tao', 'rubik', 'cube', 'ninesixty');
 }
 
 /**
