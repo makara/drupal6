@@ -1,7 +1,9 @@
 <?php
-// $Id: boxes.admin.inc,v 1.1 2010/02/02 00:46:04 jmiccolis Exp $
+// $Id: boxes.admin.inc,v 1.3 2010/03/17 16:06:43 alexb Exp $
 
-// Geneate form for creating new boxes.
+/**
+ * Generate form for creating new boxes.
+ */
 function boxes_add_form() {
   $form = boxes_box_form();
   $form['delta'] = array(
@@ -18,7 +20,9 @@ function boxes_add_form() {
   return $form;
 }
 
-// Validate handler for box delta.
+/**
+ * Validate handler for box delta.
+ */
 function boxes_validate_delta($element, &$form_state) {
   if (!preg_match('!^[a-z0-9_]+$!', $element['#value'])) {
     form_error($element, t('The machine-readable name must contain only lowercase letters, numbers, and underscores.'));
@@ -28,7 +32,9 @@ function boxes_validate_delta($element, &$form_state) {
   }
 }
 
-// Submit handler for box_add_form.
+/**
+ * Submit handler for box_add_form.
+ */
 function boxes_add_form_submit($form, &$form_state) {
   $box = new stdClass();
   $box->delta = $form_state['values']['delta'];
@@ -115,7 +121,9 @@ function boxes_box_inline_form(&$form_state, $box) {
   return $form;
 }
 
-// Submit handler for the inline form.
+/**
+ * Submit handler for the inline form.
+ */
 function boxes_box_inline_form_submit($form, $form_state) {
   $box = new stdClass();
   $box->delta = $form_state['values']['delta'];
@@ -131,7 +139,9 @@ function boxes_box_inline_form_submit($form, $form_state) {
   }
 }
 
-// Submit handler for the inline deletion.
+/**
+ * Submit handler for the inline deletion.
+ */
 function boxes_box_inline_form_delete($form, $form_state) {
   $delta = $form_state['values']['delta'];
   if (module_exists('spaces')) {
@@ -210,7 +220,9 @@ function boxes_box_ajax_delete() {
   exit;
 }
 
-// Theme function for the form
+/**
+ * Theme function for the form.
+ */
 function theme_boxes_box_inline_form($form) {
   $output = '';
   $output .= '<div class="boxes-box-content">' . drupal_render($form['content']) . '</div>';

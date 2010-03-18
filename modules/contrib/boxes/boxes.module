@@ -1,5 +1,5 @@
 <?php
-// $Id: boxes.module,v 1.4 2010/02/17 18:27:53 jmiccolis Exp $
+// $Id: boxes.module,v 1.6 2010/03/17 16:59:51 alexb Exp $
 
 /**
  * Implementation of hook_menu().
@@ -168,11 +168,8 @@ function boxes_block($op = 'list', $delta = '', $edit = array()) {
           $form_id = "boxes_box_inline_form_{$delta}";
           if (isset($_POST['form_id']) && $_POST['form_id'] === $form_id) {
             $form_id .= time();
-            $box->content = drupal_get_form($form_id, $box);
           }
-          else {
-            $box->content = drupal_get_form($form_id, $box);
-          }
+          $box->content = drupal_get_form($form_id, $box);
         }
         $block['content'] = $box->content;
         $block['subject'] = isset($box->title) ? check_plain($box->title) : NULL;
@@ -204,13 +201,18 @@ function boxes_load($delta = NULL, $reset = FALSE) {
  */
 function boxes_save($box) {
   $existing = boxes_load($box->delta, TRUE);
-  if ($existing) {
+  if ($existing && ($existing->export_type & EXPORT_IN_DATABASE)) {
     drupal_write_record('box', $box, array('delta'));
   }
   else {
     drupal_write_record('box', $box);
   }
+
+  // Invalidate the ctools object cache.
   boxes_load(NULL, TRUE);
+
+  // Invalidate the context block info cache.
+  module_exists('context') ? context_invalidate_cache() : NULL;
 }
 
 /**
@@ -218,7 +220,12 @@ function boxes_save($box) {
  */
 function boxes_delete($delta) {
   db_query("DELETE FROM {box} WHERE delta = '%s'", $delta);
+
+  // Invalidate the ctools object cache.
   boxes_load(NULL, TRUE);
+
+  // Invalidate the context block info cache.
+  module_exists('context') ? context_invalidate_cache() : NULL;
 }
 
 /**
