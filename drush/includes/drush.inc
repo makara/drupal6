@@ -1,5 +1,5 @@
 <?php
-// $Id: drush.inc,v 1.91 2010/02/23 14:12:22 weitzman Exp $
+// $Id: drush.inc,v 1.101 2010/03/20 01:37:49 greg1anderson Exp $
 
 /**
  * @file
@@ -243,7 +243,7 @@ function drush_drupal_major_version() {
 }
 
 /**
- * Replace named placeholders in a WHERE snippet. 
+ * Replace named placeholders in a WHERE snippet.
  *
  * Helper function to allow the usage of Drupal 7 WHERE snippets
  * with named placeholders in code for Drupal 5 and 6.
@@ -258,7 +258,7 @@ function drush_drupal_major_version() {
 function _drush_replace_query_placeholders($where, $args) {
   foreach ($args as $key => $data) {
     if (!is_numeric($data)) {
-      $args[$key] = '"'.$data.'"';
+      $args[$key] = "'".$data."'";
     }
     else if (is_array($data)) {
       $new_keys = array();
@@ -327,7 +327,7 @@ function drush_db_select($table, $fields = '*', $where = NULL, $args = NULL, $st
     if (is_array($fields)) {
       $fields = implode('","', $fields);
     }
-    $query = "SELECT $fields FROM {$table}";
+    $query = "SELECT $fields FROM {{$table}}";
     if (!empty($where)) {
       $where = _drush_replace_query_placeholders($where, $args);
       $query .= " WHERE ".$where;
@@ -370,7 +370,7 @@ function drush_db_delete($table, $where = NULL, $args = NULL) {
     }
   }
   else {
-    $query = "DELETE FROM {$table}";
+    $query = "DELETE FROM {{$table}}";
     if (!empty($where)) {
       $where = _drush_replace_query_placeholders($where, $args);
       $query .= ' WHERE '.$where;
@@ -404,6 +404,7 @@ function drush_db_fetch_object($result) {
 
 /**
  * Save a string to a temporary file. Does not depend on Drupal's API.
+ * The temporary file will be automatically deleted when drush exits.
  *
  * @param string $data
  * @return string
@@ -415,7 +416,81 @@ function drush_save_data_to_temp_file($data) {
   $fp = tmpfile();
   fwrite($fp, $data);
   $meta_data = stream_get_meta_data($fp);
-  return $meta_data['uri'];
+  $file = $meta_data['uri'];
+  drush_register_file_for_deletion($file);
+
+  return $file;
+}
+
+/**
+ * Creates a temporary file, and registers it so that
+ * it will be deleted when drush exits.  Whenever possible,
+ * drush_save_data_to_temp_file() should be used instead
+ * of this function.
+ */
+function drush_tempnam($pattern, $tmp_dir = NULL) {
+  if ($tmp_dir == NULL) {
+    $tmp_dir = sys_get_temp_dir();
+  }
+  $tmp_file = tempnam($tmp_dir, $pattern);
+  drush_register_file_for_deletion($tmp_file);
+
+  return $tmp_file;
+}
+
+/**
+ * Any file passed in to this function will be deleted
+ * when drush exits.
+ */
+function drush_register_file_for_deletion($file = NULL) {
+  static $registered_files = array();
+
+  if (isset($file)) {
+    if (empty($registered_files)) {
+      register_shutdown_function('_drush_delete_registered_files');
+    }
+    $registered_files[] = $file;
+  }
+
+  return $registered_files;
+}
+
+/**
+ * Delete all of the registered temporary files.
+ */
+function _drush_delete_registered_files() {
+  $files_to_delete = drush_register_file_for_deletion();
+
+  foreach ($files_to_delete as $file) {
+    // We'll make sure that the file still exists, just
+    // in case someone came along and deleted it, even
+    // though they did not need to.
+    if (file_exists($file)) {
+      unlink($file);
+    }
+  }
+}
+
+/**
+ * Deletes the provided file or folder and
+ * everything inside it.
+ */
+function drush_delete_dir($dir) {
+  if (!file_exists($dir)) {
+    return TRUE;
+  }
+  if (!is_dir($dir)) {
+    return unlink($dir);
+  }
+  foreach (scandir($dir) as $item) {
+    if ($item == '.' || $item == '..') {
+      continue;
+    }
+    if (!drush_delete_dir($dir.DIRECTORY_SEPARATOR.$item)) {
+      return FALSE;
+    }
+  }
+  return rmdir($dir);
 }
 
 /**
@@ -725,8 +800,8 @@ function drush_confirm($msg, $indent = 0) {
  *   A list of questions to display to the user.  The
  *   KEYS of the array are the result codes to return to the
  *   caller; the VALUES are the messages to display on
- *   each line. Special keys of the form '-- something --' can be 
- *   provided as separator between choices groups. Separator keys 
+ *   each line. Special keys of the form '-- something --' can be
+ *   provided as separator between choices groups. Separator keys
  *    don't alter the numbering.
  * @param $prompt
  *   The message to display to the user prompting for input.
@@ -765,6 +840,42 @@ function drush_choice($options, $prompt = 'Enter a number.', $label = '!value') 
 }
 
 /**
+ * Prompt the user for input
+ *
+ * The input can be anything that fits on a single line (not only y/n),
+ * so we can't use drush_confirm()
+ *
+ * @see drush_confirm()
+ */
+function drush_prompt($prompt, $default = NULL) {
+  if (!is_null($default)) {
+    $prompt .= " [" . $default . "]";
+  }
+  $prompt .= ": ";
+
+  print $prompt;
+
+  if (drush_get_context('DRUSH_AFFIRMATIVE')) {
+    return $default;
+  }
+
+  $stdin = fopen('php://stdin', 'r');
+  stream_set_blocking($stdin, TRUE);
+  while (($line = fgets($stdin)) !== FALSE) {
+    $line = trim($line);
+    if ($line === "") {
+      $line = $default;
+    }
+    if ($line) {
+      break;
+    }
+    print $prompt;
+  }
+  fclose($stdin);
+  return $line;
+}
+
+/**
  * Print a formatted table.
  *
  * @param $rows
@@ -798,6 +909,7 @@ function drush_print_table($rows, $header = FALSE, $widths = array()) {
 
   $tbl->addData($newrows);
   print $tbl->getTable();
+  return $tbl;
 }
 
 /**
@@ -1382,19 +1494,14 @@ function drush_format_size($size, $langcode = NULL) {
  * A sneaky implementation of hook_watchdog().
  */
 function system_watchdog($log_entry) {
-  static $errors = array(
-    WATCHDOG_EMERG, 
-    WATCHDOG_ALERT, 
-    WATCHDOG_CRITICAL,
-    WATCHDOG_ERROR
-  );
 
   // Transform non informative severity levels to 'error' for compatibility with _drush_print_log.
-  // Other severity levels are coincident with the ones we use in drush.  
-  if (in_array($log_entry['severity'], $errors)) {
+  // Other severity levels are coincident with the ones we use in drush.
+  if (drush_drupal_major_version() >= 6 && $log_entry['severity'] <= 2) {
     $severity = 'error';
   }
   else {
+    drush_include_engine('drupal', 'environment');
     $levels = core_watchdog_severity_levels();
     $severity = $levels[$log_entry['severity']];
   }

@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# $Id: drush,v 1.15 2010/02/05 14:10:09 greg1anderson Exp $
+# $Id: drush,v 1.16 2010/03/17 13:34:17 weitzman Exp $
 #
 # This script is a simple wrapper that will run Drush with the most appropriate
 # php executable it can find.
@@ -28,8 +28,8 @@ case $(uname -a) in
     SCRIPT_PATH=$(cygpath -w -a -- "$SCRIPT_PATH") ;;
 esac
 
-# If it is not exported determine and export the number of columns.
-if [ -z $COLUMNS ]; then
+# If not exported and term is set determine and export the number of columns.
+if [ -z $COLUMNS ] && [ -n "$TERM" ]; then
   export COLUMNS=$(tput cols)
 fi
 

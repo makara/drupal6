@@ -1,5 +1,5 @@
 <?php
-// $Id: environment_6.inc,v 1.7 2010/02/22 13:35:14 weitzman Exp $
+// $Id: environment_6.inc,v 1.8 2010/03/17 13:30:16 weitzman Exp $
 /**
  * @file
  *   Specific functions for a drupal 5 environment.
@@ -165,3 +165,25 @@ function drush_theme_disable($themes) {
   db_query("UPDATE {system} SET status = 0 WHERE type = 'theme' AND name IN (".db_placeholders($themes, 'text').")", $themes);
 }
 
+/**
+ * Helper function to obtain the severity levels based on Drupal version.
+ *
+ * This is a copy of watchdog_severity_levels() without t().
+ *
+ * Severity levels, as defined in RFC 3164: http://www.ietf.org/rfc/rfc3164.txt.
+ *
+ * @return
+ *   Array of watchdog severity levels.
+ */
+function core_watchdog_severity_levels() {
+  return array(
+    WATCHDOG_EMERG    => 'emergency',
+    WATCHDOG_ALERT    => 'alert',
+    WATCHDOG_CRITICAL => 'critical',
+    WATCHDOG_ERROR    => 'error',
+    WATCHDOG_WARNING  => 'warning',
+    WATCHDOG_NOTICE   => 'notice',
+    WATCHDOG_INFO     => 'info',
+    WATCHDOG_DEBUG    => 'debug',
+  );
+}

@@ -1,5 +1,5 @@
 <?php
-// $Id: environment.inc,v 1.77 2010/02/22 04:03:17 weitzman Exp $
+// $Id: environment.inc,v 1.80 2010/03/28 14:24:10 weitzman Exp $
 
 /**
  * @file
@@ -670,8 +670,8 @@ function _drush_bootstrap_drupal_configuration() {
   drupal_bootstrap(DRUPAL_BOOTSTRAP_CONFIGURATION);
 
   // Overriding the $conf array from drupal CONFIGURATION bootstrap with the
-  // overrides we collected on the loaded config files on DRUSH_BOOTSTRAP_DRUSH
-  $conf = is_array($conf) ? array_merge($conf, $drush_conf_override) : $drush_conf_override;
+  // Overrides we collected on the loaded config files on DRUSH_BOOTSTRAP_DRUSH
+  $conf = is_array($conf) && is_array($drush_conf_override) ? array_merge($conf, $drush_conf_override) : $conf;
 
   // Populate the DRUSH_DB_CREDENTIALS with the fields loaded from the configuration.
   $creds = array();
@@ -871,6 +871,8 @@ function drush_site_path($path = NULL) {
  *
  * @param
  *   Search start path. Defaults to current working directory.
+ * @return
+ *   A path to drupal root, or FALSE if not found.
  */
 function drush_locate_root($start_path = NULL) {
   $drupal_root = FALSE;
@@ -910,7 +912,7 @@ function drush_locate_root($start_path = NULL) {
  *   Path to check.
  *
  * @return boolean
- *   True if given path seems to be a Drupal root, otherwise false.
+ *   True if given path seems to be a Drupal root, otherwise FALSE.
  */
 function drush_valid_drupal_root($path) {
   return !empty($path) && is_dir($path) && file_exists($path . '/' . DRUSH_DRUPAL_BOOTSTRAP);

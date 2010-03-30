@@ -1,5 +1,5 @@
 <?php
-// $Id: sql.drush.inc,v 1.37 2010/01/29 06:14:26 greg1anderson Exp $
+// $Id: sql.drush.inc,v 1.41 2010/03/26 18:52:04 greg1anderson Exp $
 
 /**
  * @file Drush sql commands
@@ -62,9 +62,10 @@ function sql_drush_command() {
       '--result-file' => 'Save to a file. The file should be relative to Drupal root. Recommended.',
       '--skip-tables-key' => 'A key in the $skip_tables array. @see example.drushrc.php. Optional.',
       '--structure-tables-key' => 'A key in the $structure_tables array. @see example.drushrc.php. Optional.',
-      '--tables' => 'An explcit list of tables to dump, in comma delimited format',
+      '--tables-key' => 'A key in the $tables array. Optional.',
+      '--tables-list' => 'A comma-separated list of tables to transfer. Optional.',
       '--ordered-dump' => 'Use this option to output ordered INSERT statements in the sql-dump.Useful when backups are managed in a Version Control System. Optional.',
-      '--create-db' => 'Wipe existing tables (i.e. --clean). Postgres only.',
+      '--create-db' => 'Wipe existing tables.',
       '--data-only' => 'Omit CREATE TABLE statements. Postgres only.',
       '--ordered-dump' => 'Order by primary key and add line breaks for efficient diff in revision control. Also, faster rsync. Slows down the dump. Mysql only.',
     ) + $options,
@@ -87,7 +88,7 @@ function sql_drush_command() {
     'description' => 'Copy source database to target database using rsync.',
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'examples' => array(
-      'drush sql-sync prod dev' => 'Copy the DB defined in sites/prod to the DB in sites/dev.',
+      'drush sql-sync dev prod' => 'Copy the DB defined in sites/dev to the DB in sites/prod.',
     ),
     'arguments' => array(
       'from' => 'Name of subdirectory within /sites or a site-alias.',
@@ -96,6 +97,8 @@ function sql_drush_command() {
     'options' => array(
       '--skip-tables-key' => 'A key in the $skip_tables array. @see example.drushrc.php. Optional.',
       '--structure-tables-key' => 'A key in the $structure_tables array. @see example.drushrc.php. Optional.',
+      '--tables-key' => 'A key in the $tables array. Optional.',
+      '--tables-list' => 'A comma-separated list of tables to transfer. Optional.',
       '--cache' => 'Skip dump if result file exists and is less than "cache" hours old. Optional; default is 24 hours.',
       '--no-cache' => 'Do not cache the sql-dump file.',
       '--no-dump' => 'Do not dump the sql database; always use an existing dump file.',
@@ -109,7 +112,8 @@ function sql_drush_command() {
       '--target-dump' => '',
       '--temp' => 'Use a temporary file to hold dump files.  Implies --no-cache.',
       '--create-db' => 'Create a new database before importing the database dump on the target machine.',
-      '--db-su' => 'Remote account to use when creating a new database. Optional.',
+      '--db-su' => 'Account to use when creating a new database. Optional.',
+      '--db-su-pw' => 'Password for the "db-su" account. Optional.',
     ),
   );
   if (drush_drupal_major_version() >= 7) {
@@ -132,8 +136,10 @@ function sql_drush_command() {
  * Command callback. Displays the Drupal site's database connection string.
  */
 function drush_sql_conf() {
-  $all = drush_get_option('all');
-  if (isset($all)) {
+  if (drush_get_option('db-url', FALSE)) {
+    $db_spec['db-url'] = $GLOBALS['db_url'];    
+  }
+  elseif (drush_get_option('all', FALSE)) {
     $db_spec = $GLOBALS['databases'];
     if (!isset($db_spec)) {
       $db_spec = array('default' => array('default' => _drush_sql_get_db_spec()));
@@ -357,7 +363,6 @@ function _drush_sql_query($query, $db_spec = NULL) {
     }
 
     $return = drush_op('system', $exec) !== FALSE;
-    drush_op('unlink', $file);
     return $return;
   }
 }
@@ -401,22 +406,11 @@ function _drush_sql_get_db_spec() {
 
     default:
       // We don't use DB API here `sql-sync` would have to messily addConnection.
+      if (!isset($GLOBALS['databases']) || !array_key_exists($database, $GLOBALS['databases']) || !array_key_exists($target, $GLOBALS['databases'][$database])) {
+        return NULL;
+      }
       return $GLOBALS['databases'][$database][$target];
   }
-}
-
-
-// Build a $db_spec from a given site-alias
-function _drush_sql_get_spec_from_site_alias($alias, $prefix) {
-  global $db_url;
-  $all_site_aliases = drush_get_option('site-aliases', array());
-  if (array_key_exists($alias, $all_site_aliases)) {
-    $site_alias_settings = drush_sitealias_get_record($alias, TRUE);
-    $database = drush_get_option($prefix . 'database', 'default');
-    $target = drush_get_option($prefix . 'target', 'default');
-    return $site_alias_settings['databases'][$database][$target];
-  }
-  return _drush_sql_get_spec_from_settings("./sites/$alias/settings.php", $prefix);
 }
 
 // Build a $db_spec from a given settings.php.
@@ -443,18 +437,39 @@ function _drush_sql_get_spec_from_settings($file, $prefix) {
   return _drush_sql_get_db_spec();
 }
 
-function _drush_sql_get_spec_from_options($prefix) {
+function _drush_sql_get_spec_from_options($prefix, $default_to_self = TRUE) {
+  $db_spec = NULL;
   $databases = drush_get_option($prefix . 'databases');
-  if (isset($databases)) {
+  if (isset($databases) && !empty($databases)) {
     $database = drush_get_option($prefix . 'database', 'default');
     $target = drush_get_option($prefix . 'target', 'default');
-    return $databases[$database][$target];
+    if (array_key_exists($database, $databases) && array_key_exists($target, $databases[$database])) {
+      $db_spec = $databases[$database][$target];
+    }
   }
-  $db_url = drush_get_option($prefix . 'db-url');
-  if (isset($db_url)) {
-    return drush_convert_db_from_db_url($db_url);
+  else {
+    $db_url = drush_get_option($prefix . 'db-url');
+    if (isset($db_url)) {
+      $db_spec = drush_convert_db_from_db_url($db_url);
+    }
+    elseif ($default_to_self) {
+      $db_spec = _drush_sql_get_db_spec();
+    }
   }
-  return _drush_sql_get_db_spec();
+  
+  if (isset($db_spec)) {
+    $db_spec['remote-host'] = drush_get_option($prefix . 'remote-host');
+    $db_spec['port'] = drush_get_option($prefix . 'remote-port', $db_spec['port']);
+  }
+  
+  return $db_spec;
+}
+
+function drush_sql_dump_file($db_spec) {
+  $dump_file = drush_tempnam($db_spec['database'] . '.sql.');
+  $db_spec['dump-is-temp'] = TRUE;
+  
+  return $dump_file;
 }
 
 function _drush_sql_get_scheme($db_spec = NULL) {

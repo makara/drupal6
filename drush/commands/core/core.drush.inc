@@ -1,5 +1,5 @@
 <?php
-// $Id: core.drush.inc,v 1.81 2010/02/23 19:32:09 weitzman Exp $
+// $Id: core.drush.inc,v 1.85 2010/03/22 23:52:11 weitzman Exp $
 
 /**
  * @file
@@ -34,12 +34,6 @@ function core_drush_command() {
   );
   $items['cron'] = array(
     'description' => 'Run all cron hooks.',
-  );
-  $items['hook'] = array(
-    'description' => 'List implementations of a given hook and explore source of specified one.',
-    'arguments' => array(
-      'hook' => 'The name of the hook to explore.'
-    )
   );
   $items['updatedb'] = array(
     'description' => dt('Execute the update.php process from the command line'),
@@ -102,10 +96,10 @@ function core_drush_command() {
   );
   $items['rsync'] = array(
     'description' => 'Rsync the Drupal tree to/from another server using ssh.  Relative paths start from the Drupal root folder if a site alias is used; otherwise they start from the current working directory.',
-    'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_CONFIGURATION,
+    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH, // No bootstrap.
     'arguments' => array(
-      'source' => 'May be rsync path or site alias. See rsync documentation and example.drushrc.php.',
-      'destination' => 'May be rsync path or site alias. See rsync documentation and example.drushrc.php.',
+      'source' => 'May be rsync path or site alias. See rsync documentation and example.aliases.drushrc.php.',
+      'destination' => 'May be rsync path or site alias. See rsync documentation and example.aliases.drushrc.php.',
     ),
     'options' => array(
       '--mode' => 'The unary flags to pass to rsync; --mode=rultz implies rsync -rultz.  Default is -az.',
@@ -203,21 +197,6 @@ function drush_core_updatedb() {
 }
 
 /**
- * Command handler. Show hook implementations
- */
-function drush_core_hook($hook) {
-  $hook_implementations = module_implements($hook);
-  if ($choice = drush_choice(array_combine($hook_implementations, $hook_implementations), 'Enter the number of the hook implementation you wish to view.')) {
-    $func = new ReflectionFunction($choice . "_$hook");
-    drush_print(dt("// file: !file, lines !startline-!endline", array('!file' => $func->getFileName(), '!startline' => $func->getStartLine(), '!endline' => $func->getEndLine())));
-    // TODO: Do this in PHP for better compatibility. Help wanted.
-    $exec = sprintf('sed -n %d,%dp %s', $func->getStartLine(), $func->getEndLine(), $func->getFileName());
-    $return = drush_op('system', $exec);
-    return $return;
-  }
-}
-
-/**
  * This is called if no command or an unknown command is entered.
  */
 function drush_core_help() {
@@ -300,8 +279,6 @@ function core_drush_help($section) {
       return dt('Execute a drush command. Run `drush help [command]` to view command-specific help.');
     case 'drush:cron':
       return dt("Runs all cron hooks in all active modules for specified site.");
-    case 'drush:hook':
-      return dt("List hook implementations for a given hook and get more detail on a given implementation.");
     case 'drush:status':
       return dt("View the Drupal version and DB credentials for the current site.");
     case 'drush:php-script':
@@ -399,7 +376,7 @@ function _core_site_status_table() {
     $status_table['PHP configuration'] = php_ini_loaded_file();
   }
   $status_table['Drush Version'] = DRUSH_VERSION;
-  $status_table['Drush configuration'] = implode(' ', drush_get_context_options('context-path'));
+  $status_table['Drush configuration'] = implode(' ', drush_get_context_options('context-path', TRUE));
   return $status_table;
 }
 
@@ -500,9 +477,12 @@ function drush_core_php_script() {
   else {
     // Execute the specified script.
     $script = $args[0];
+    if (!preg_match('/\.php$/i', $script)) {
+      $script .= '.php';
+    }
     $found = FALSE;
     foreach($searchpath as $path) {
-      $script_filename = $path . '/' . $script . '.php';
+      $script_filename = $path . '/' . $script;
       if (file_exists($script_filename)) {
         include($script_filename);
         $found = TRUE;

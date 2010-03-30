@@ -1,5 +1,5 @@
 <?php
-// $Id: sitealias.drush.inc,v 1.12 2010/01/29 06:14:26 greg1anderson Exp $
+// $Id: sitealias.drush.inc,v 1.15 2010/03/13 16:31:15 greg1anderson Exp $
 
 /**
  * @file
@@ -19,7 +19,7 @@ function sitealias_drush_command() {
   $items['site-alias'] = array(
     'callback' => 'drush_sitealias_print',
     'description' => 'Print site alias records for all known site aliases and local sites.',
-    'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
+    'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'arguments' => array(
       'site' => 'Site specification alias to print',
     ),
@@ -48,7 +48,7 @@ function sitealias_drush_command() {
  * is the site specification for the given alias.
  */
 function _drush_sitealias_alias_list() {
-  return drush_get_option('site-aliases', array());
+  return drush_get_context('site-aliases');
 }
 
 /**
@@ -64,8 +64,9 @@ function _drush_sitealias_site_list() {
   foreach ($files as $filename => $info) {
     if ($info->basename == 'settings.php') {
       $alias_record = drush_sitealias_build_record_from_settings_file($filename);
-      $uri = drush_sitealias_site_dir_from_filename($filename);
-      $site_list[$uri] = $alias_record;
+      if (!empty($alias_record)) {
+        $site_list[drush_sitealias_uri_to_site_dir($alias_record['uri'])] = $alias_record;
+      }
     }
   }
   return $site_list;
@@ -75,6 +76,7 @@ function _drush_sitealias_site_list() {
  * Return the list of all site aliases and all local sites.
  */
 function _drush_sitealias_all_list() {
+  drush_sitealias_load_all();
   return array_merge(_drush_sitealias_alias_list(), _drush_sitealias_site_list());
 }
 
@@ -105,6 +107,8 @@ function _drush_sitealias_user_specified_list($db_settings_needed = false) {
  * specified.
  */
 function drush_sitealias_print() {
+  drush_bootstrap_max();
+  
   $full_output = drush_get_option('full');
   $long_output = drush_get_option('long');
   $with_db = (drush_get_option('with-db') != null) || (drush_get_option('with-db-url') != null);
@@ -139,14 +143,17 @@ function _drush_sitealias_print_record($alias_record, $site_alias = '') {
 
   // Make sure that the default items have been added for all aliases
   _drush_sitealias_add_static_defaults($alias_record);
-  
-  drush_sitealias_resolve_path_references($alias_record);
-  
+    
   // Include the optional items, if requested
   if ($output_optional_items) {
     _drush_sitealias_add_transient_defaults($alias_record);
   }
 
+  drush_sitealias_resolve_path_references($alias_record);
+
+  if (isset($output_db_url)) {
+    drush_sitealias_add_db_url($alias_record);
+  }
   if (isset($output_db_url) || isset($output_db)) {
     drush_sitealias_add_db_settings($alias_record);
   }
@@ -191,9 +198,15 @@ function _drush_sitealias_print_record($alias_record, $site_alias = '') {
       unset($alias_record['path-aliases']);
     }
   }
+  
+  // Alias names contain an '@' when referenced, but do
+  // not contain an '@' when defined.
+  if (substr($alias_name,0,1) == '@') {
+    $alias_name = substr($alias_name,1);
+  }
 
   $exported_alias = var_export($alias_record, TRUE);
-  drush_print('$options[\'site-aliases\'][\'' . $alias_name . '\'] = ' . $exported_alias . ';');
+  drush_print('$aliases[\'' . $alias_name . '\'] = ' . $exported_alias . ';');
 }
 
 /**
@@ -208,9 +221,11 @@ function _drush_sitealias_print_record($alias_record, $site_alias = '') {
  *   A uri, such as http://domain.com:8080/drupal
  */
 function _drush_sitealias_site_dir_to_uri($site_dir) {
-
+  // Protect IP addresses NN.NN.NN.NN by converting them
+  // temporarily to NN_NN_NN_NN for now.
+  $uri = preg_replace("/([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)/", "$1_$2_$3_$4", $site_dir);
   // Convert .[0-9]+. into :[0-9]+/
-  $uri = preg_replace("/\.([0-9]+)\./", ":$1/", $site_dir);
+  $uri = preg_replace("/\.([0-9]+)\./", ":$1/", $uri);
   // Convert .[0-9]$ into :[0-9]
   $uri = preg_replace("/\.([0-9]+)$/", ":$1", $uri);
   // Convert .(com|net|org|info). into .(com|net|org|info)/
@@ -229,6 +244,9 @@ function _drush_sitealias_site_dir_to_uri($site_dir) {
   // but it does not work for domains such as .co.jp with no path,
   // and it can fail horribly if someone makes a domain like "info.org".
   // Still, I think this is the best we can do short of consulting DNS.
+
+  // Convert from NN_NN_NN_NN back to NN.NN.NN.NN
+  $uri = preg_replace("/([0-9]+)_([0-9]+)_([0-9]+)_([0-9]+)/", "$1.$2.$3.$4", $site_dir);
 
   return 'http://' . $uri;
 }

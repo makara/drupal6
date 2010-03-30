@@ -1,5 +1,5 @@
 <?php
-// $Id: environment_5.inc,v 1.7 2010/02/22 13:35:14 weitzman Exp $
+// $Id: environment_5.inc,v 1.9 2010/03/17 13:30:16 weitzman Exp $
 /**
  * @file
  *   Specific functions for a drupal 5 environment.
@@ -90,8 +90,21 @@ function drush_module_dependents($modules, $module_info) {
  *   Array of module names
  */
 function drush_module_enable($modules) {
-  // drupal_install_modules() will call hook_install() if necessary and afterwards module_enable().
-  drupal_install_modules($modules);
+  // In Drupal 5, drupal_install_modules() only installs new modules,
+  // and does not enable previously installed and disabled modules.
+  $install_modules = array();
+  $enable_modules = array();
+
+  foreach ($modules as $module) {
+    if (drupal_get_installed_schema_version($module) == SCHEMA_UNINSTALLED) {
+      $install_modules[] = $module;
+    }
+    else {
+      $enable_modules[] = $module;
+    }
+  }
+  drupal_install_modules($install_modules);
+  module_enable($enable_modules);
 }
 
 /**
@@ -171,3 +184,20 @@ function drush_theme_disable($themes) {
   db_query("UPDATE {system} SET status = 0 WHERE type = 'theme' AND name IN (".$placeholder.")", $themes);
 }
 
+/**
+ * Helper function to obtain the severity levels based on Drupal version.
+ *
+ * This is a copy of watchdog_severity_levels() without t().
+ *
+ * Severity levels, as defined in RFC 3164: http://www.ietf.org/rfc/rfc3164.txt.
+ *
+ * @return
+ *   Array of watchdog severity levels.
+ */
+function core_watchdog_severity_levels() {
+  return array(
+    WATCHDOG_NOTICE => 'notice',
+    WATCHDOG_WARNING => 'warning',
+    WATCHDOG_ERROR => 'error'
+  );
+}

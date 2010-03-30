@@ -1,5 +1,5 @@
 <?php
-// $Id: variable.drush.inc,v 1.17 2010/02/22 21:33:15 weitzman Exp $
+// $Id: variable.drush.inc,v 1.19 2010/03/25 02:48:17 weitzman Exp $
 
 /**
  * Implementation of hook_drush_help().
@@ -94,26 +94,27 @@ function variable_drush_command() {
  */
 function drush_variable_get() {
   global $conf;
-  $args = func_get_args();
-  foreach(array_keys($conf) as $name) {
-    if (strstr($name, $args[0])) {
-      $value = $conf[$name];
-      drush_print_pipe("\$variables['$name'] = ". var_export($value, TRUE). ";\n");
+  $keys = array_keys($conf);
+  if ($args = func_get_args()) {
+    $keys = preg_grep("/{$args[0]}/", $keys);
+  }
+  foreach ($keys as $name) {
+    $value = $conf[$name];
+    drush_print_pipe("\$variables['$name'] = ". var_export($value, TRUE). ";\n");
 
-      if ($value === TRUE) {
-        $value = 'TRUE';
-      }
-      elseif ($value === FALSE) {
-        $value = 'FALSE';
-      }
-      elseif (is_string($value)) {
-        $value = '"' . $value . '"';
-      }
-      elseif (is_array($value) || is_object($value)) {
-        $value = print_r($value, TRUE);
-      }
-      drush_print($name . ': ' . $value);
+    if ($value === TRUE) {
+      $value = 'TRUE';
     }
+    elseif ($value === FALSE) {
+      $value = 'FALSE';
+    }
+    elseif (is_string($value)) {
+      $value = '"' . $value . '"';
+    }
+    elseif (is_array($value) || is_object($value)) {
+      $value = print_r($value, TRUE);
+    }
+    drush_print($name . ': ' . $value);
   }
 }
 
@@ -202,4 +203,3 @@ function drush_variable_delete() {
 function drush_variable_like($arg) {
   return drush_db_select('variable', 'name', 'name LIKE :keyword', array(':keyword' => $arg . '%'), NULL, NULL, 'name');
 }
-

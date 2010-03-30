@@ -1,4 +1,4 @@
-// $Id: README.txt,v 1.35 2010/02/23 20:30:59 weitzman Exp $
+// $Id: README.txt,v 1.41 2010/03/29 02:09:43 weitzman Exp $
 
 DESCRIPTION
 -----------
@@ -61,7 +61,7 @@ USAGE
 Once installed and setup (see above), you can use drush as follows while in
 any Drupal directory:
 
-  $ drush [options] <command>
+  $ drush [options] <command> [argument1] [argument2]
 
 Use the 'help' command to get a list of available options and commands:
 
@@ -79,6 +79,16 @@ Related Options:
                                 (only needed in multisite environments)
   -v, --verbose                 Display verbose output.
 
+NOTE: If you do not specify a URI with -l and drush falls back to the default
+site configuration, Drupal's $GLOBAL['base_url'] will be set to http://default.
+This may cause some functionality to not work as expected.
+
+EXAMPLES
+--------
+Inside the "examples" folder you will find some example files to help you
+get started with your drush configuration file (example.drushrc.php),
+site alias definitions (example.aliases.drushrc.php) and drush commands
+(example.drush.inc).
 
 DRUSHRC.PHP
 --------
@@ -86,26 +96,31 @@ If you get tired of typing options all the time, you can add them to your drush.
 create a drushrc.php file. These provide additional options for your drush call. They provide
 great flexibility for a multi-site installation, for example. See example.drushrc.php.
 
+SITE ALIASES
+--------
+Drush lets you run commands on a remote server, or even on a set of remote servers.
+See http://drupal.org/node/670460 and example.aliases.drushrc.php for more information.
+
 COMMANDS
 --------
 Drush ships with a number of commands, but you can easily write
-your own. In fact, writing a drush command is no harder that writing simple
-Drupal extensions, since drush command files closely follow the structure of
+your own. In fact, writing a drush command is no harder than writing simple
+Drupal modules, since drush command files closely follow the structure of
 ordinary Drupal modules.
 
-See example.drush.inc for details on the internals of a drush command
-file.
+See example.drush.inc for light details on the internals of a drush command file.
+Otherwise, the core commands in drush are good models for your own commands.
 
 You can put your drush command file in a number of places:
 
-  - In a .drush folder in your HOME folder. Note, that you have
-    to make the .drush folder yourself.
-  - Along with one of your existing modules. If your command is
-    related to an existing module, this is the preferred option.
-  - In a folder specified with the include option (see above).
-  - In /path/to/drush/commands (not a Smart Thing, but it would work).
+  - In a folder specified with the --include option (see above).
+  - Along with one of your existing modules. If your command is related to an
+    existing module, this is the preferred approach.
+  - In a .drush folder in your HOME folder. Note, that you have to create the
+    .drush folder yourself.
+  - In the system-wide drush commands folder, e.g. /usr/share/drush/commands
 
-In any case, it is important that you append it with ".drush.inc", so
+In any case, it is important that you end the filename with ".drush.inc", so
 that drush can find it.
 
 REQUIREMENTS

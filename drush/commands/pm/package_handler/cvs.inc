@@ -1,5 +1,5 @@
 <?php
-// $Id: cvs.inc,v 1.12 2010/02/23 14:18:58 weitzman Exp $
+// $Id: cvs.inc,v 1.15 2010/02/25 01:54:15 weitzman Exp $
 
 /**
  * @file Drush PM CVS extension
@@ -8,7 +8,7 @@
 /**
  * Install a project.
  *
- * @param $project The project array with name, base and full (final) paths. 
+ * @param $project The project array with name, base and full (final) paths.
  * @param $release The release details array from drupal.org
  */
 function package_handler_install_project($project, $release) {
@@ -32,7 +32,7 @@ function package_handler_install_project($project, $release) {
 /**
  * Update a project (so far, only modules are supported).
  *
- * @param $project The project array with name, base and full (final) paths. 
+ * @param $project The project array with name, base and full (final) paths.
  * @param $release The release details array from drupal.org
  */
 function package_handler_update_project($project, $release) {
@@ -53,7 +53,7 @@ function package_handler_update_project($project, $release) {
 
 /**
  * General CVS helper function
- * @param $project The project array with name, base and full (final) paths. 
+ * @param $project The project array with name, base and full (final) paths.
  * @param $release The release details array from drupal.org
  */
 function drush_pm_cvs($project, $release) {
@@ -101,9 +101,9 @@ function drush_pm_cvs($project, $release) {
     $cvsparams = '-dP';
   }
 
-  // CVS only accepts relative paths.
-  $cwd = drush_get_context('DRUSH_DRUPAL_ROOT');
-  $path = '.' . ltrim(str_replace($cwd, '', $project['full_project_path']), '.');
+  // CVS only accepts relative paths. We will cd in the checkout path right
+  // before running the cvs command.
+  $checkout_path = $project['base_project_path'];
 
   $cvsparts = array();
   $cvsparts[] = '-z6';
@@ -112,14 +112,14 @@ function drush_pm_cvs($project, $release) {
   $cvsparts[] = $cvsmethod;
   $cvsparts[] = '-r '. $release['tag'];
   if ($cvsmethod == 'checkout') {
-    $cvsparts[] = '-d ' . $path;
+    $cvsparts[] = '-d ' . $project['name'];
     $cvsparts[] = $cvsdir . $project['name'];
   }
   else {
-    $cvsparts[] = $path;
+    $cvsparts[] = $project['name'];
   }
 
-  if (!drush_shell_exec('cvs ' . implode(' ', $cvsparts))) {
+  if (!drush_shell_exec('cd ' . $checkout_path . ' ; cvs ' . implode(' ', $cvsparts))) {
     drush_set_error('DRUSH_PM_UNABLE_CHECKOUT', 'Unable to checkout ' . $project['name'] . ' from cvs.drupal.org.');
   }
 }
