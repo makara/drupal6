@@ -1,5 +1,5 @@
 <?php
-// $Id: context.inc,v 1.24 2010/03/24 04:48:38 greg1anderson Exp $
+// $Id: context.inc,v 1.26 2010/04/05 18:21:36 greg1anderson Exp $
 /**
  * @file
  * The Drush context API implementation.
@@ -198,15 +198,16 @@ function drush_set_config_options($context, $options, $override = array()) {
  */
 function drush_set_config_special_contexts(&$options) {  
   if (isset($options)) {
+    $has_command_specific = array_key_exists('command-specific', $options);
     // Change the keys of the site aliases from 'alias' to '@alias'
     if (array_key_exists('site-aliases', $options)) {
       $user_aliases = $options['site-aliases'];
       $options['site-aliases'] = array();
       foreach ($user_aliases as $alias_name => $alias_value) {
-	if (substr($alias_name,0,1) != '@') {
+        if (substr($alias_name,0,1) != '@') {
           $alias_name = "@$alias_name";
-	}
-	$options['site-aliases'][$alias_name] = $alias_value;
+        }
+        $options['site-aliases'][$alias_name] = $alias_value;
       }
     }
     
@@ -218,6 +219,11 @@ function drush_set_config_special_contexts(&$options) {
         $cache = array_merge($cache, $options[$option_name]);
         unset($options[$option_name]);
       }
+    }
+    // If command-specific options were set and if we already have
+    // a command, then apply the command-specific options immediately.
+    if ($has_command_specific) {
+      drush_command_default_options();
     }
   }
 }

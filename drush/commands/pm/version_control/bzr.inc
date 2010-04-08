@@ -1,5 +1,5 @@
 <?php
-// $Id: bzr.inc,v 1.5 2010/01/27 16:29:19 weitzman Exp $
+// $Id: bzr.inc,v 1.6 2010/04/02 04:06:38 weitzman Exp $
 
 /**
  * @file Drush pm BZR extension
@@ -25,7 +25,7 @@ class drush_pm_version_control_bzr implements drush_pm_version_control {
   /**
    * Implementation of pre_update().
    */
-  public function pre_update(&$project) {
+  public function pre_update(&$project, $items_to_test = array()) {
     // TODO: Add similar checks to SVN?
   }
 

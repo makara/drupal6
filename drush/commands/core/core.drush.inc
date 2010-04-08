@@ -1,5 +1,5 @@
 <?php
-// $Id: core.drush.inc,v 1.85 2010/03/22 23:52:11 weitzman Exp $
+// $Id: core.drush.inc,v 1.88 2010/04/05 03:55:51 greg1anderson Exp $
 
 /**
  * @file
@@ -104,15 +104,17 @@ function core_drush_command() {
     'options' => array(
       '--mode' => 'The unary flags to pass to rsync; --mode=rultz implies rsync -rultz.  Default is -az.',
       '--RSYNC-FLAG' => 'Most rsync flags passed to drush sync will be passed on to rsync.  See rsync documentation.',
-      '--all-paths' => 'If <source> and <destination> are site aliases, and neither <source> nor <destination> specifies a path component, then rsync all path aliases that are defined in both the source and destination alias.',
-      '--exclude-conf' => 'Implies rsync --exclude="settings.php" --exclude="robots.txt" --exclude=".htaccess".  Default.',
-      '--include-conf' => 'Allow settings.php, robots.txt and .htaccess to be rsynced',
+      '--exclude-conf' => 'Excludes settings.php from being rsynced.  Default.',
+      '--include-conf' => 'Allow settings.php to be rsynced',
+      '--exclude-files' => 'Exclude the files directory.',
       '--exclude-sites' => 'Exclude all directories in "sites/" except for "sites/all".',
+      '--exclude-other-sites' => 'Exclude all directories in "sites/" except for "sites/all" and the site directory for the site being synced.  Note: if the site directory is different between the source and destination, use --exclude-sites followed by "drush rsync @from:%site @to:%site"',
+      '--exclude-paths' => 'Coma-separated list of paths to exclude.',
+      '--include-paths' => 'Coma-separated list of paths to include.',
     ),
     'examples' => array(
-      'rsync dev stage' => 'Rsync Drupal root from dev to stage (one of which must be local).',
-      'rsync --all-paths --exclude-conf dev stage' => 'Rsync Drupal root and all other paths from dev to stage for every path alias defined in both dev and stage.',
-      'rsync ./ stage:!files/img' => 'Rsync all files in the current directory to the \'img\' directory in the file storage folder on stage.',
+      'drush rsync @dev @stage' => 'Rsync Drupal root from dev to stage (one of which must be local).',
+      'drush rsync ./ @stage:%files/img' => 'Rsync all files in the current directory to the \'img\' directory in the file storage folder on stage.',
     ),
     'deprecated-aliases' => array('sync'),
   );
@@ -144,9 +146,9 @@ function core_drush_command() {
       'sites-subdir' => "Name of directory under 'sites' which should be created if needed. Defaults to 'default'",
     ),
     'examples' => array(
-      'site-install expert --locale=uk' => '(Re)install using the expert install profile. Set default language to Ukranian.',
-      'site-install --db-url=mysql://root:pass@localhost:port/dbname ' => 'Install using the specified DB params.',
-      'site-install --account-user=joe --account-pass=mom' => 'Re-install with specified uid1 credentials.',
+      'drush site-install expert --locale=uk' => '(Re)install using the expert install profile. Set default language to Ukranian.',
+      'drush site-install --db-url=mysql://root:pass@localhost:port/dbname ' => 'Install using the specified DB params.',
+      'drush site-install --account-user=joe --account-pass=mom' => 'Re-install with specified uid1 credentials.',
     ),
     'core' => array(7),
     'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_ROOT,
@@ -353,7 +355,9 @@ function _core_site_status_table() {
         $status_table['Database Hostname'] = $creds['host'];
         $status_table['Database Username'] = $creds['user'];
         $status_table['Database Name'] = $creds['name'];
-        $status_table['Database Password'] = $creds['pass'];
+        if (drush_get_option('show-passwords', FALSE)) {
+          $status_table['Database Password'] = $creds['pass'];
+        }
         if ($phase > DRUSH_BOOTSTRAP_DRUPAL_DATABASE) {
           $status_table['Database'] = dt('Connected');
           if ($phase > DRUSH_BOOTSTRAP_DRUPAL_FULL) {

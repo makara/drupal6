@@ -1,5 +1,5 @@
 <?php
-// $Id: sql.drush.inc,v 1.41 2010/03/26 18:52:04 greg1anderson Exp $
+// $Id: sql.drush.inc,v 1.44 2010/04/05 03:55:51 greg1anderson Exp $
 
 /**
  * @file Drush sql commands
@@ -111,6 +111,7 @@ function sql_drush_command() {
       '--target-remote-host' => '',
       '--target-dump' => '',
       '--temp' => 'Use a temporary file to hold dump files.  Implies --no-cache.',
+      '--dump-dir' => 'Directory to store sql dump files in when --source-dump or --target-dump are not used.  Takes precedence over --temp.',
       '--create-db' => 'Create a new database before importing the database dump on the target machine.',
       '--db-su' => 'Account to use when creating a new database. Optional.',
       '--db-su-pw' => 'Password for the "db-su" account. Optional.',
@@ -149,6 +150,9 @@ function drush_sql_conf() {
     $db_spec = _drush_sql_get_db_spec();
   }
   drush_backend_set_result($db_spec);
+  if (!drush_get_option('show-passwords', FALSE)) {
+    drush_unset_recursive($db_spec, 'password');
+  }
   drush_print_r($db_spec);
 }
 
@@ -413,30 +417,6 @@ function _drush_sql_get_db_spec() {
   }
 }
 
-// Build a $db_spec from a given settings.php.
-function _drush_sql_get_spec_from_settings($file, $prefix) {
-  // Reset global databases to whatever is defined in $file
-  global $databases, $db_url;
-  require $file;
-
-  // Translate the custom options for sql-sync into ones usually recognized (i.e. no prefix).
-  if ($database = drush_get_option($prefix . 'database')) {
-    drush_set_option('database', $database);
-  }
-  if ($target = drush_get_option($prefix . 'target')) {
-    drush_set_option('target', $target);
-  }
-  // Backwards-compatible for sql load:  accept 'source_database' in addition to the more standard 'source-database'
-  if ($database = drush_get_option(str_replace('-', '_', $prefix . 'database'))) {
-    drush_set_option('database', $value);
-  }
-  if ($target = drush_get_option(str_replace('-', '_', $prefix . 'target'))) {
-    drush_set_option('target', $target);
-  }
-
-  return _drush_sql_get_db_spec();
-}
-
 function _drush_sql_get_spec_from_options($prefix, $default_to_self = TRUE) {
   $db_spec = NULL;
   $databases = drush_get_option($prefix . 'databases');
@@ -465,9 +445,35 @@ function _drush_sql_get_spec_from_options($prefix, $default_to_self = TRUE) {
   return $db_spec;
 }
 
-function drush_sql_dump_file($db_spec) {
-  $dump_file = drush_tempnam($db_spec['database'] . '.sql.');
-  $db_spec['dump-is-temp'] = TRUE;
+/**
+ * Determine where to store an sql dump file.  This
+ * function is called by sql-sync if the caller did
+ * not explicitly specify a dump file to use.
+ *
+ * @param db_spec
+ *   Information about the database being dumped; used
+ *   to generate the filename.
+ * @return string
+ *   The path to the dump file
+ */
+function drush_sql_dump_file(&$db_spec) {
+  // Make a base filename pattern to use to name the dump file
+  $filename_pattern = $db_spec['database'];
+  if (isset($db_spec['remote-host'])) {
+    $filename_pattern = $db_spec['remote-host'] . '_' . $filename_pattern;
+  }
+  // If the user has set the --dump-dir option, then
+  // store persistant sql dump files there.
+  $dump_dir = drush_get_option(array('source-dump-dir', 'dump-dir'));
+  if (isset($dump_dir)) {
+    $dump_file = $dump_dir . '/' . $filename_pattern . '.sql';
+  }
+  // If the --dump-dir option is not set, then store
+  // the sql dump in a temporary file.
+  else {
+    $dump_file = drush_tempnam($filename_pattern . '.sql.');
+    $db_spec['dump-is-temp'] = TRUE;
+  }
   
   return $dump_file;
 }

@@ -1,5 +1,5 @@
 <?php
-// $Id: drush.inc,v 1.101 2010/03/20 01:37:49 greg1anderson Exp $
+// $Id: drush.inc,v 1.105 2010/04/06 12:02:39 weitzman Exp $
 
 /**
  * @file
@@ -90,13 +90,13 @@ function drush_include($path, $name, $version = NULL, $extension = 'inc') {
   $version = ($version) ? $version : drush_drupal_major_version();
   $file = sprintf("%s/%s_%s.%s", $path, $name, $version, $extension);
   if (file_exists($file)) {
-    drush_log(dt('Including version specific file : @file', array('@file' => $file)));
+    // drush_log(dt('Including version specific file : @file', array('@file' => $file)));
     include_once($file);
     return TRUE;
   }
   $file = sprintf("%s/%s.%s", $path, $name, $extension);
   if (file_exists($file)) {
-    drush_log(dt('Including non-version specific file : @file', array('@file' => $file)));
+    // drush_log(dt('Including non-version specific file : @file', array('@file' => $file)));
     include_once($file);
     return TRUE;
   }
@@ -257,17 +257,20 @@ function drush_drupal_major_version() {
  */
 function _drush_replace_query_placeholders($where, $args) {
   foreach ($args as $key => $data) {
-    if (!is_numeric($data)) {
-      $args[$key] = "'".$data."'";
-    }
-    else if (is_array($data)) {
+    if (is_array($data)) {
       $new_keys = array();
       foreach ($data as $i => $value) {
+        if (!is_numeric($value)) {
+          $value = "'".$value."'";
+        }
         $new_keys[$key . '_' . $i] = $value;
       }
-      $where = preg_replace('#' . $key . '\b#', implode(', ', array_keys($new_keys)), $query);
+      $where = preg_replace('#' . $key . '\b#', implode(', ', array_keys($new_keys)), $where);
       unset($args[$key]);
       $args += $new_keys;
+    }
+    else if (!is_numeric($data)) {
+      $args[$key] = "'".$data."'";
     }
   }
 
@@ -325,7 +328,7 @@ function drush_db_select($table, $fields = '*', $where = NULL, $args = NULL, $st
   }
   else {
     if (is_array($fields)) {
-      $fields = implode('","', $fields);
+      $fields = implode(', ', $fields);
     }
     $query = "SELECT $fields FROM {{$table}}";
     if (!empty($where)) {
@@ -570,6 +573,7 @@ function drush_get_option_help() {
   $options['-b, --backend']            = dt("Hide all output and return structured data (internal use only).");
   $options['-p, --pipe']               = dt("Emit a compact representation of the command for scripting.");
   $options['--nocolor']                = dt("Suppress color highlighting on log messages.");
+  $options['--show-passwords']         = dt("Show database passwords in commands that display connection information.");
   $options['-h, --help']               = dt("This help system.");
   $options['--php']                    = dt("The absolute path to your PHP intepreter, if not 'php' in the path.");
   return $options;
@@ -1087,9 +1091,9 @@ function drush_do_multiple_command($command, $source_record, $destination_record
     $source_path = array_key_exists('path-component', $source_record) ? $source_record['path-component'] : '';
     $destination_path = array_key_exists('path-component', $destination_record) ? $destination_record['path-component'] : '';
 
-    $target_list = drush_sitealias_resolve_sitelist($destination_record);
+    $target_list = array_values(drush_sitealias_resolve_sitelist($destination_record));
     if (array_key_exists('site-list', $source_record)) {
-      $source_list = drush_sitealias_resolve_sitelist($source_record);
+      $source_list = array_values(drush_sitealias_resolve_sitelist($source_record));
 
       if (drush_sitealias_check_lists_alignment($source_list, $target_list) === FALSE) {
         if (array_key_exists('unordered-list', $source_record) || array_key_exists('unordered-list', $destination_record)) {
@@ -1102,9 +1106,6 @@ function drush_do_multiple_command($command, $source_record, $destination_record
     else {
       $source_list = array_fill(0, count($target_list), $source_record);
     }
-
-    drush_print($source_path);
-    drush_print($destination_path);
 
     if (!drush_get_context('DRUSH_SIMULATE')) {
       drush_print(dt('You are about to !command between all of the following targets:', array('!command' => $command)));
@@ -1688,4 +1689,17 @@ function drush_memory_limit() {
   }
 
   return $value;
+}
+
+/**
+ * Unset the named key anywhere in the provided
+ * data structure.
+ */
+function drush_unset_recursive(&$data, $unset_key) {
+  unset($data[$unset_key]);
+  foreach ($data as $key => $value) {
+    if (is_array($value)) {
+      drush_unset_recursive($data[$key], $unset_key);
+    }
+  }
 }

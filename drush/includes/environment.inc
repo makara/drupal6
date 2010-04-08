@@ -1,5 +1,5 @@
 <?php
-// $Id: environment.inc,v 1.80 2010/03/28 14:24:10 weitzman Exp $
+// $Id: environment.inc,v 1.83 2010/04/06 13:13:24 weitzman Exp $
 
 /**
  * @file
@@ -530,6 +530,9 @@ function _drush_bootstrap_drupal_root() {
   $version = drush_set_context('DRUSH_DRUPAL_VERSION', drush_drupal_version());
   $major_version = drush_set_context('DRUSH_DRUPAL_MAJOR_VERSION', drush_drupal_major_version());
 
+  // Create an alias '@sites'
+  drush_sitealias_create_sites_alias($drupal_root);
+  
   drush_log(dt("Initialized Drupal !version root directory at !drupal_root", array("!version" => $version, '!drupal_root' => $drupal_root)));
 }
 
@@ -569,7 +572,12 @@ function _drush_bootstrap_drupal_site_validate() {
       'host' => NULL,
     );
     $_SERVER['HTTP_HOST'] = $drupal_base_url['host'];
-    $_SERVER['PHP_SELF'] = $drupal_base_url['path'] . '/index.php';
+    if (array_key_exists('path', $drupal_base_url)) {
+      $_SERVER['PHP_SELF'] = $drupal_base_url['path'] . '/index.php';
+    }
+    else {
+      $_SERVER['PHP_SELF'] = '/index.php';
+    }
   }
   else {
     $_SERVER['HTTP_HOST'] = 'default';
@@ -602,7 +610,10 @@ function _drush_bootstrap_do_drupal_site() {
   $drush_uri = drush_set_context('DRUSH_URI', drush_bootstrap_value('drush_uri'));
   $site = drush_set_context('DRUSH_DRUPAL_SITE', drush_bootstrap_value('site'));
   $conf_path = drush_set_context('DRUSH_DRUPAL_SITE_ROOT', drush_bootstrap_value('conf_path'));
-
+  
+  // Create an alias '@self'
+  _drush_sitealias_cache_alias('self', array('root' => drush_get_context('DRUSH_DRUPAL_ROOT'), 'uri' => $drush_uri));
+  
   // Find any command files that are available during this bootstrap phase.
   _drush_find_commandfiles(DRUSH_BOOTSTRAP_DRUPAL_SITE);
 

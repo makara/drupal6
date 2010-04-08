@@ -1,7 +1,8 @@
-version=3.0-rc1
+version=3.0-rc3
 
-; Information added by drupal.org packaging script on 2010-03-29
-version = "All-Versions-3.0-rc1"
+; Information added by drupal.org packaging script on 2010-04-06
+version = "6.x-3.0-rc3"
+core = "6.x"
 project = "drush"
-datestamp = "1269834617"
+datestamp = "1270560307"
 

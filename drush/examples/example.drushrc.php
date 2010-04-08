@@ -1,5 +1,5 @@
 <?php
-// $Id: example.drushrc.php,v 1.3 2010/03/28 05:11:48 weitzman Exp $
+// $Id: example.drushrc.php,v 1.5 2010/04/05 03:55:51 greg1anderson Exp $
 
 /*
  * Examples of valid statements for a drushrc.php file. Use this file to cut down on
@@ -77,8 +77,17 @@
 // and *.aliases.drushrc.php files
 # $options['alias-path'] = '/path/to/aliases:/path2/to/more/aliases';
 
+// Specify directory where sql-sync will store persistent dump files.
+// Keeping the dump files around will improve the performance of rsync
+// when the database is rsync'ed to a remote system.  If a dump directory
+// is not specified, then sql-sync will store dumps in temporary files.
+# $options['dump-dir'] = '/path/to/dumpdir';
+
 // Enable verbose mode.
 # $options['v'] = 1;
+
+// Show database passwords in 'status' and 'sql-conf' commands
+# $options['show-passwords'] = 1;
 
 // Default logging level for php notices.  Defaults to "notice"; set to "warning"
 // if doing drush development.  Also make sure that error_reporting is set to E_ALL

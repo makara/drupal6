@@ -1,5 +1,5 @@
 <?php
-// $Id: sitealias.drush.inc,v 1.15 2010/03/13 16:31:15 greg1anderson Exp $
+// $Id: sitealias.drush.inc,v 1.21 2010/04/05 18:21:36 greg1anderson Exp $
 
 /**
  * @file
@@ -24,9 +24,9 @@ function sitealias_drush_command() {
       'site' => 'Site specification alias to print',
     ),
     'options' => array(
-      '--full' => 'Print the full alias record for each site.',
-      '--long' => 'Print the long-form site specification for each site.',
-      '--short' => 'Print only the site alias name (default).',
+      '--full' => 'Print the full alias record for each site.  Default when aliases are specified on the command line.',
+      '--short' => 'Print only the site alias name.  Default when not command line arguments are specified.',
+      '--pipe' => 'Print the long-form site specification for each site.',
       '--with-db' => 'Include the databases structure in the full alias record.',
       '--with-db-url' => 'Include the short-form db-url in the full alias record.',
       '--no-db' => 'Do not include the database record in the full alias record (default).',
@@ -34,8 +34,8 @@ function sitealias_drush_command() {
     ),
     'aliases' => array('sa'),
     'examples' => array(
-      'drush site-alias' => 'Print an alias record for the default site.',
-      'drush site-alias dev' => 'Print an alias record for the alias \'dev\'.',
+      'drush site-alias' => 'List all alias records known to drush.',
+      'drush site-alias @dev' => 'Print an alias record for the alias \'dev\'.',
     ),
   );
   return $items;
@@ -85,14 +85,20 @@ function _drush_sitealias_all_list() {
  * user specified on the command line.  If none were specified,
  * then all are returned.
  */
-function _drush_sitealias_user_specified_list($db_settings_needed = false) {
+function _drush_sitealias_user_specified_list() {
   $command = drush_get_command();
   $specifications = $command['arguments'];
   $site_list = array();
-
+  
+  // Did the user specify --short or --full output?
+  $specified_output_style = drush_get_option(array('full', 'short'), FALSE);
+  
   // Iterate over the arguments and convert them to alias records
   if (!empty($specifications)) {
-    $site_list = drush_sitealias_resolve_sitespecs($specifications, $db_settings_needed);
+    $site_list = drush_sitealias_resolve_sitespecs($specifications);
+    if (!$specified_output_style) {
+      drush_set_option('full', TRUE);
+    }
   }
   // If the user provided no args, then we will return everything.
   else {
@@ -109,24 +115,24 @@ function _drush_sitealias_user_specified_list($db_settings_needed = false) {
 function drush_sitealias_print() {
   drush_bootstrap_max();
   
+  $site_list = _drush_sitealias_user_specified_list();
   $full_output = drush_get_option('full');
   $long_output = drush_get_option('long');
   $with_db = (drush_get_option('with-db') != null) || (drush_get_option('with-db-url') != null);
-  $site_list = _drush_sitealias_user_specified_list($with_db);
 
+  $site_specs = array();
   foreach ($site_list as $site => $alias_record) {
+    if (!array_key_exists('site-list', $alias_record)) {
+      $site_specs[] = drush_sitealias_alias_record_to_spec($alias_record, $with_db);
+    }
     if (isset($full_output)) {
       _drush_sitealias_print_record($alias_record, $site);
-    }
-    elseif (isset($long_output)) {
-      _drush_sitealias_check_sitelist_fields($alias_record);
-      $site_spec = drush_sitealias_alias_record_to_spec($alias_record, $with_db);
-      drush_print($site_spec);
     }
     else {
       drush_print($site);
     }
   }
+  drush_print_pipe(implode(' ', array_unique($site_specs)));
 }
 
 /**
@@ -203,6 +209,10 @@ function _drush_sitealias_print_record($alias_record, $site_alias = '') {
   // not contain an '@' when defined.
   if (substr($alias_name,0,1) == '@') {
     $alias_name = substr($alias_name,1);
+  }
+
+  if (!drush_get_option('show-passwords', FALSE)) {
+    drush_unset_recursive($alias_record, 'password');
   }
 
   $exported_alias = var_export($alias_record, TRUE);

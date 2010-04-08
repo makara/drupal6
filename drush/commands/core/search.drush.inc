@@ -1,5 +1,5 @@
 <?php
-// $Id: search.drush.inc,v 1.5 2010/01/27 16:29:19 weitzman Exp $
+// $Id: search.drush.inc,v 1.6 2010/04/02 04:14:49 weitzman Exp $
 
 function drush_core_search_status() {
   list($remaining, $total) = _drush_core_search_status();
@@ -59,7 +59,7 @@ function _drush_core_search_index() {
     else {
       $eval .= " module_invoke_all('update_index');";
     }
-    drush_backend_invoke('eval', array($eval));
+    drush_backend_invoke('php-eval', array($eval));
     list($remaining, ) = _drush_core_search_status();
   }
 }
