@@ -14,7 +14,7 @@ function _profile_settings_modules_basic() {
     // Views
     'views',
     // Context
-    'context',
+    'context', 'context_layouts',
     // Features
     'features',
     // Image
@@ -50,6 +50,13 @@ function _profile_settings_modules_extra() {
     // Development
     'devel', 'devel_generate',
   );
+}
+
+/**
+ * Content modules.
+ */
+function _profile_settings_modules_content() {
+  return array();
 }
 
 /**

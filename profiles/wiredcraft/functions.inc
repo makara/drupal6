@@ -41,6 +41,7 @@ function _profile_batch_install_configure($url) {
   $batch['operations'][] = array('_profile_revert_features', array());
   $batch['operations'][] = array('_profile_flush_cache', array());
   $batch['operations'][] = array('_profile_init_blocks', array());
+  $batch['operations'][] = array('_profile_init_content', array());
   $batch['finished'] = '_profile_configure_finished';
   variable_set('install_task', 'install-configure-batch');
   batch_set($batch);
@@ -82,6 +83,14 @@ function _profile_init_blocks() {
 
   $custom_theme = $backup_custom_theme;
   $theme_key = $backup_theme_key;
+}
+
+/**
+ * Init content.
+ */
+function _profile_init_content() {
+  $modules = _profile_settings_modules_content();
+  drupal_install_modules($modules);
 }
 
 /**

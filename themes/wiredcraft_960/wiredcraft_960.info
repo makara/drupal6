@@ -1,6 +1,6 @@
 ; $Id$
 
-name = "Wiredcraft 960"
+name = "Example theme"
 description = ""
 core = "6.x"
 engine = "phptemplate"
