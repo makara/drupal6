@@ -1,8 +1,0 @@
-# CCK 2.6 patches from Drupal.org
-
-## http://drupal.org/node/624868
-### in CCK dir
-patch -b -f modules/userreference/userreference.install ../../../patches/cck/userreference.install.6002.patch
-### Hunk #1 FAILED at 1. (?)
-### After update
-cd modules/userreference && mv userreference.install.orig userreference.install && rm userreference.install.rej && cd -
