@@ -20,5 +20,6 @@
 /potx*
 
 *.mo
+*.orig
 
 drushrc.php
