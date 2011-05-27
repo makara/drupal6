@@ -10,6 +10,7 @@
 !/sites/all/modules
 /sites/all/modules/*
 !/sites/all/modules/custom
+!/sites/all/modules/features
 
 /sites/default/*
 !/sites/default/default.settings.php
@@ -19,7 +20,12 @@
 /test*
 /potx*
 
-*.mo
 *.orig
+*.mo
+
+/*.txt
+!/COPYRIGHT.txt
+!/LICENSE.txt
+!/robots.txt
 
 drushrc.php
