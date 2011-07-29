@@ -1,0 +1,81 @@
+name = "Drupal 6 Profiler"
+description = "Drupal 6 install profile built with Profiler."
+core = "6.x"
+base = ""
+
+theme = "cube"
+
+; Core - Required
+dependencies[] = "block"
+dependencies[] = "filter"
+dependencies[] = "node"
+dependencies[] = "system"
+dependencies[] = "user"
+
+; Core - Optional
+dependencies[] = "comment"
+dependencies[] = "contact"
+dependencies[] = "dblog"
+dependencies[] = "help"
+dependencies[] = "menu"
+dependencies[] = "openid"
+dependencies[] = "search"
+dependencies[] = "taxonomy"
+dependencies[] = "update"
+
+; Buildkit
+dependencies[] = "admin"
+dependencies[] = "content"
+dependencies[] = "context"
+dependencies[] = "context_ui"
+dependencies[] = "context_layouts"
+dependencies[] = "ctools"
+dependencies[] = "date_api"
+dependencies[] = "date_timezone"
+dependencies[] = "devel"
+dependencies[] = "diff"
+dependencies[] = "features"
+dependencies[] = "jquery_ui"
+dependencies[] = "openidadmin"
+dependencies[] = "strongarm"
+dependencies[] = "views"
+dependencies[] = "views_ui"
+
+; Buildkit - CCK
+dependencies[] = "number"
+dependencies[] = "optionwidgets"
+dependencies[] = "text"
+
+; Base
+dependencies[] = "jquery_update"
+
+; Base - Tools
+dependencies[] = "boxes"
+dependencies[] = "imageapi"
+dependencies[] = "imageapi_gd"
+dependencies[] = "imagecache"
+dependencies[] = "imagecache_ui"
+dependencies[] = "libraries"
+;dependencies[] = "mimedetect"
+dependencies[] = "token"
+dependencies[] = "transliteration"
+
+; Base - CCK
+dependencies[] = "filefield"
+dependencies[] = "imagefield"
+
+; Base - Views
+dependencies[] = "views_rss"
+
+; Base - Feeds & Data
+dependencies[] = "data"
+dependencies[] = "data_ui"
+dependencies[] = "feeds"
+dependencies[] = "feeds_ui"
+dependencies[] = "schema"
+
+; Base - Spaces
+dependencies[] = "purl"
+dependencies[] = "spaces"
+dependencies[] = "spaces_dashboard"
+dependencies[] = "spaces_ui"
